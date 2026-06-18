@@ -9,6 +9,7 @@ export default defineConfig({
       registerType: "autoUpdate",
       includeAssets: ["logo.svg"],
       manifest: {
+        lang: "sk",
         name: "Lean Bulk Tracker",
         short_name: "Bulk Tracker",
         description: "Osobný lean-bulk dashboard a tréningový log",

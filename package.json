@@ -15,6 +15,9 @@
     "verify": "pnpm lint && pnpm test && pnpm build && pnpm test:rules && pnpm test:e2e"
   },
   "packageManager": "pnpm@11.8.0",
+  "engines": {
+    "node": ">=22.22.0"
+  },
   "type": "module",
   "dependencies": {
     "date-fns": "^4.4.0",
