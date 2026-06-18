@@ -1,0 +1,49 @@
+{
+  "name": "lean-bulk-tracker",
+  "version": "1.0.0",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:rules": "firebase emulators:exec --project demo-lean-bulk --only firestore \"vitest run tests/rules\"",
+    "test:e2e": "playwright test",
+    "dev:e2e": "vite --mode e2e --host 127.0.0.1",
+    "lint": "eslint .",
+    "icons": "pwa-assets-generator --preset minimal-2023 public/logo.svg",
+    "verify": "pnpm lint && pnpm test && pnpm build && pnpm test:rules && pnpm test:e2e"
+  },
+  "packageManager": "pnpm@11.8.0",
+  "type": "module",
+  "dependencies": {
+    "date-fns": "^4.4.0",
+    "firebase": "^12.15.0",
+    "lucide-react": "^1.20.0",
+    "react": "^19.2.7",
+    "react-dom": "^19.2.7",
+    "react-router": "^8.0.0"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@firebase/rules-unit-testing": "^5.0.1",
+    "@playwright/test": "^1.61.0",
+    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/react": "^16.3.2",
+    "@testing-library/user-event": "^14.6.1",
+    "@types/react": "^19.2.17",
+    "@types/react-dom": "^19.2.3",
+    "@vite-pwa/assets-generator": "^1.0.2",
+    "@vitejs/plugin-react": "^6.0.2",
+    "eslint": "^10.5.0",
+    "eslint-plugin-react-hooks": "^7.1.1",
+    "eslint-plugin-react-refresh": "^0.5.3",
+    "firebase-tools": "^15.20.0",
+    "jsdom": "^29.1.1",
+    "typescript": "^6.0.3",
+    "typescript-eslint": "^8.61.1",
+    "vite": "^8.0.16",
+    "vite-plugin-pwa": "^1.3.0",
+    "vitest": "^4.1.9"
+  }
+}
