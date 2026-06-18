@@ -16,14 +16,22 @@ export const makeExercise = (overrides: Partial<Exercise> = {}): Exercise => ({
   ...overrides
 });
 
-export const makeTopSet = (overrides: Partial<TopSet> = {}): TopSet => ({
-  id: "2026-06-19__rdl",
-  date: "2026-06-19",
-  exerciseId: "rdl",
-  weightKg: 100,
-  reps: 8,
-  rir: 1,
-  estimated1RmKg: 126.6667,
-  updatedAtMs: 1,
-  ...overrides
-});
+export const makeTopSet = (overrides: Partial<TopSet> = {}): TopSet => {
+  const date = overrides.date ?? "2026-06-19";
+  const exerciseId = overrides.exerciseId ?? "rdl";
+  const weightKg = overrides.weightKg ?? 100;
+  const reps = overrides.reps ?? 8;
+  const rir = overrides.rir ?? 1;
+
+  return {
+    ...overrides,
+    id: overrides.id ?? `${date}__${exerciseId}`,
+    date,
+    exerciseId,
+    weightKg,
+    reps,
+    rir,
+    estimated1RmKg: overrides.estimated1RmKg ?? weightKg * (1 + reps / 30),
+    updatedAtMs: overrides.updatedAtMs ?? 1
+  };
+};

@@ -184,6 +184,26 @@ describe("default tracker data", () => {
       }
     ]);
   });
+
+  it("keeps exercise and schedule relationships internally consistent", () => {
+    const exerciseIds = DEFAULT_EXERCISES.map((exercise) => exercise.id);
+    const weekdays = DEFAULT_TRAINING_DAYS.map((day) => day.weekday);
+    const knownExerciseIds = new Set(exerciseIds);
+
+    expect(new Set(exerciseIds).size).toBe(exerciseIds.length);
+    expect(new Set(weekdays).size).toBe(weekdays.length);
+    expect(DEFAULT_EXERCISES.every((exercise) => exercise.repMin <= exercise.repMax)).toBe(true);
+    expect(
+      DEFAULT_TRAINING_DAYS.every((day) =>
+        day.exerciseIds.every((exerciseId) => knownExerciseIds.has(exerciseId))
+      )
+    ).toBe(true);
+    expect(
+      DEFAULT_TRAINING_DAYS.filter((day) => !day.enabled).every(
+        (day) => day.exerciseIds.length === 0
+      )
+    ).toBe(true);
+  });
 });
 
 describe("local dates", () => {
@@ -201,7 +221,7 @@ describe("local dates", () => {
 });
 
 describe("test fixtures", () => {
-  it("provides stable domain defaults that can be overridden", () => {
+  it("provides stable domain defaults", () => {
     expect(makeDailyEntry()).toEqual({
       date: "2026-06-19",
       updatedAtMs: 1
@@ -214,15 +234,52 @@ describe("test fixtures", () => {
       repMax: 10,
       isMain: true
     });
-    expect(makeTopSet({ reps: 9 })).toEqual({
+    expect(makeTopSet()).toEqual({
       id: "2026-06-19__rdl",
       date: "2026-06-19",
       exerciseId: "rdl",
       weightKg: 100,
-      reps: 9,
+      reps: 8,
       rir: 1,
-      estimated1RmKg: 126.6667,
+      estimated1RmKg: 100 * (1 + 8 / 30),
       updatedAtMs: 1
+    });
+  });
+
+  it("derives top-set identity and Epley estimate from primary overrides", () => {
+    expect(
+      makeTopSet({
+        date: "2024-02-29",
+        exerciseId: "flat-bench-press",
+        weightKg: 90,
+        reps: 10,
+        rir: 2
+      })
+    ).toEqual({
+      id: "2024-02-29__flat-bench-press",
+      date: "2024-02-29",
+      exerciseId: "flat-bench-press",
+      weightKg: 90,
+      reps: 10,
+      rir: 2,
+      estimated1RmKg: 90 * (1 + 10 / 30),
+      updatedAtMs: 1
+    });
+  });
+
+  it("respects explicit top-set derived overrides", () => {
+    expect(
+      makeTopSet({
+        date: "2024-02-29",
+        exerciseId: "flat-bench-press",
+        weightKg: 90,
+        reps: 10,
+        id: "custom-id",
+        estimated1RmKg: 123.45
+      })
+    ).toMatchObject({
+      id: "custom-id",
+      estimated1RmKg: 123.45
     });
   });
 });
