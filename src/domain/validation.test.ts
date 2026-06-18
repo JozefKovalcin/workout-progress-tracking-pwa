@@ -70,6 +70,22 @@ describe("validateDailyEntry", () => {
       "Kvalita tréningu musí byť na škále 1–10."
     ]);
   });
+
+  it("rejects fractional wellness scores", () => {
+    expect(
+      validateDailyEntry(
+        makeDailyEntry({
+          sleepScore: 1.5,
+          readinessScore: 1.5,
+          trainingQualityScore: 1.5
+        })
+      )
+    ).toEqual([
+      "Spánok musí byť na škále 1–10.",
+      "Pripravenosť musí byť na škále 1–10.",
+      "Kvalita tréningu musí byť na škále 1–10."
+    ]);
+  });
 });
 
 describe("validateTopSet", () => {
@@ -83,7 +99,7 @@ describe("validateTopSet", () => {
         })
       )
     ).toEqual([
-      "Top set: Váha musí byť väčšia ako 0 kg.",
+      "Váha musí byť väčšia ako 0 kg.",
       "Opakovania musia byť 1–100.",
       "RIR musí byť 0–10."
     ]);
@@ -99,7 +115,7 @@ describe("validateTopSet", () => {
         })
       )
     ).toEqual([
-      "Top set: Váha musí byť väčšia ako 0 kg.",
+      "Váha musí byť väčšia ako 0 kg.",
       "Opakovania musia byť 1–100.",
       "RIR musí byť 0–10."
     ]);

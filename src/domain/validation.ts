@@ -4,6 +4,10 @@ function isOutsideOptionalRange(value: number | undefined, min: number, max: num
   return value !== undefined && (value < min || value > max);
 }
 
+function isInvalidOptionalScore(value: number | undefined): boolean {
+  return value !== undefined && (!Number.isInteger(value) || value < 1 || value > 10);
+}
+
 export function validateDailyEntry(entry: DailyEntry): string[] {
   const errors: string[] = [];
 
@@ -16,13 +20,13 @@ export function validateDailyEntry(entry: DailyEntry): string[] {
   if (isOutsideOptionalRange(entry.calories, 0, 10_000)) {
     errors.push("Kalórie musia byť medzi 0 a 10 000.");
   }
-  if (isOutsideOptionalRange(entry.sleepScore, 1, 10)) {
+  if (isInvalidOptionalScore(entry.sleepScore)) {
     errors.push("Spánok musí byť na škále 1–10.");
   }
-  if (isOutsideOptionalRange(entry.readinessScore, 1, 10)) {
+  if (isInvalidOptionalScore(entry.readinessScore)) {
     errors.push("Pripravenosť musí byť na škále 1–10.");
   }
-  if (isOutsideOptionalRange(entry.trainingQualityScore, 1, 10)) {
+  if (isInvalidOptionalScore(entry.trainingQualityScore)) {
     errors.push("Kvalita tréningu musí byť na škále 1–10.");
   }
 
@@ -33,7 +37,7 @@ export function validateTopSet(topSet: TopSet): string[] {
   const errors: string[] = [];
 
   if (topSet.weightKg <= 0 || topSet.weightKg > 1000) {
-    errors.push("Top set: Váha musí byť väčšia ako 0 kg.");
+    errors.push("Váha musí byť väčšia ako 0 kg.");
   }
   if (!Number.isInteger(topSet.reps) || topSet.reps < 1 || topSet.reps > 100) {
     errors.push("Opakovania musia byť 1–100.");
