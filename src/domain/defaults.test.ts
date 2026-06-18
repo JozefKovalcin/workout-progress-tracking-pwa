@@ -11,18 +11,178 @@ describe("default tracker data", () => {
       trainingCalories: 2900,
       restCalories: 2700,
       proteinGrams: 180,
-      fatGrams: 50
+      fatGrams: 50,
+      evaluationDays: 14,
+      targetGainMinPct: 0.2,
+      targetGainMaxPct: 0.35
     });
   });
 
-  it("uses five enabled training days", () => {
-    expect(DEFAULT_TRAINING_DAYS.filter((day) => day.enabled).map((day) => day.weekday))
-      .toEqual([1, 3, 5, 6, 7]);
+  it("defines all main exercises in their configured order", () => {
+    expect(DEFAULT_EXERCISES).toEqual([
+      {
+        id: "incline-db-press",
+        name: "Incline DB press",
+        muscleGroup: "Hrudník",
+        repMin: 6,
+        repMax: 10,
+        isMain: true
+      },
+      {
+        id: "machine-chest-press",
+        name: "Machine chest press",
+        muscleGroup: "Hrudník",
+        repMin: 8,
+        repMax: 12,
+        isMain: true
+      },
+      {
+        id: "flat-bench-press",
+        name: "Flat Bench Press",
+        muscleGroup: "Hrudník",
+        repMin: 6,
+        repMax: 10,
+        isMain: true
+      },
+      {
+        id: "chest-supported-row",
+        name: "Chest-supported row",
+        muscleGroup: "Chrbát",
+        repMin: 8,
+        repMax: 12,
+        isMain: true
+      },
+      {
+        id: "lat-pulldown",
+        name: "Lat pulldown",
+        muscleGroup: "Chrbát",
+        repMin: 8,
+        repMax: 12,
+        isMain: true
+      },
+      {
+        id: "chin-row",
+        name: "Chin row",
+        muscleGroup: "Ramená",
+        repMin: 10,
+        repMax: 15,
+        isMain: true
+      },
+      {
+        id: "cable-lateral-raise",
+        name: "Cable lateral raise",
+        muscleGroup: "Ramená",
+        repMin: 8,
+        repMax: 15,
+        isMain: true
+      },
+      {
+        id: "hack-squat-leg-press",
+        name: "Hack squat / leg press",
+        muscleGroup: "Quads",
+        repMin: 6,
+        repMax: 10,
+        isMain: true
+      },
+      {
+        id: "seated-lying-leg-curl",
+        name: "Seated/lying leg curl",
+        muscleGroup: "Hamstringy",
+        repMin: 8,
+        repMax: 15,
+        isMain: true
+      },
+      {
+        id: "rdl",
+        name: "RDL",
+        muscleGroup: "Hamstringy",
+        repMin: 6,
+        repMax: 10,
+        isMain: true
+      },
+      {
+        id: "hip-thrust",
+        name: "Hip thrust",
+        muscleGroup: "Glutes",
+        repMin: 8,
+        repMax: 12,
+        isMain: true
+      },
+      {
+        id: "walking-lunge",
+        name: "Walking lunge",
+        muscleGroup: "Glutes",
+        repMin: 10,
+        repMax: 15,
+        isMain: true
+      },
+      {
+        id: "standing-calf-raise",
+        name: "Standing calf raise",
+        muscleGroup: "Lýtka",
+        repMin: 8,
+        repMax: 15,
+        isMain: true
+      },
+      {
+        id: "cable-crunch",
+        name: "Cable crunch",
+        muscleGroup: "Brucho",
+        repMin: 10,
+        repMax: 20,
+        isMain: true
+      },
+      {
+        id: "dragon-flag",
+        name: "Dragon Flag",
+        muscleGroup: "Brucho",
+        repMin: 8,
+        repMax: 15,
+        isMain: true
+      }
+    ]);
   });
 
-  it("normalizes Flat Bench Press to 6-10 reps", () => {
-    expect(DEFAULT_EXERCISES.find((exercise) => exercise.id === "flat-bench-press"))
-      .toMatchObject({ repMin: 6, repMax: 10, isMain: true });
+  it("defines the complete weekly training schedule in weekday order", () => {
+    expect(DEFAULT_TRAINING_DAYS).toEqual([
+      {
+        weekday: 1,
+        label: "Lower / quads",
+        enabled: true,
+        exerciseIds: [
+          "hack-squat-leg-press",
+          "seated-lying-leg-curl",
+          "standing-calf-raise",
+          "cable-crunch"
+        ]
+      },
+      { weekday: 2, label: "Voľno", enabled: false, exerciseIds: [] },
+      {
+        weekday: 3,
+        label: "Hrudník priority / pull",
+        enabled: true,
+        exerciseIds: ["incline-db-press", "chest-supported-row"]
+      },
+      { weekday: 4, label: "Voľno", enabled: false, exerciseIds: [] },
+      {
+        weekday: 5,
+        label: "Pump / objem",
+        enabled: true,
+        exerciseIds: ["machine-chest-press", "cable-lateral-raise", "chin-row"]
+      },
+      {
+        weekday: 6,
+        label: "Posterior / pull",
+        enabled: true,
+        exerciseIds: ["rdl", "hip-thrust", "walking-lunge", "lat-pulldown"]
+      },
+      {
+        weekday: 7,
+        label: "Hrudník weakpoint / brucho",
+        enabled: true,
+        exerciseIds: ["flat-bench-press", "dragon-flag"]
+      }
+    ]);
   });
 });
 
