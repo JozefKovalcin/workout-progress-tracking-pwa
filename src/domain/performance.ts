@@ -1,0 +1,121 @@
+import { subDays } from "date-fns";
+import { fromLocalDate } from "./date";
+import type { LocalDate, TopSet } from "./types";
+
+export interface ExercisePerformance {
+  exerciseId: string;
+  current: TopSet;
+  previous: TopSet;
+  percentChange: number;
+  isPr: boolean;
+  reliability: "normal" | "low";
+}
+
+export interface PerformanceSummary {
+  overallPercent: number | null;
+  comparableExercises: number;
+  items: ExercisePerformance[];
+  repeatedDeclineExerciseIds: string[];
+}
+
+export function calculateE1Rm(weightKg: number, reps: number): number {
+  return weightKg * (1 + reps / 30);
+}
+
+function percentChange(current: TopSet, previous: TopSet): number {
+  const currentE1Rm = calculateE1Rm(current.weightKg, current.reps);
+  const previousE1Rm = calculateE1Rm(previous.weightKg, previous.reps);
+  return ((currentE1Rm - previousE1Rm) / previousE1Rm) * 100;
+}
+
+export function summarizePerformance(
+  sets: TopSet[],
+  endDate: LocalDate
+): PerformanceSummary {
+  const end = fromLocalDate(endDate);
+  const windowStart = subDays(end, 6);
+  const sortedSets = [...sets]
+    .map((set) => ({ set, date: fromLocalDate(set.date) }))
+    .filter(({ date }) => date <= end)
+    .sort(
+      (left, right) =>
+        left.date.getTime() - right.date.getTime() ||
+        left.set.updatedAtMs - right.set.updatedAtMs ||
+        left.set.id.localeCompare(right.set.id)
+    );
+  const setsByExercise = new Map<string, typeof sortedSets>();
+
+  for (const entry of sortedSets) {
+    const exerciseSets = setsByExercise.get(entry.set.exerciseId) ?? [];
+    exerciseSets.push(entry);
+    setsByExercise.set(entry.set.exerciseId, exerciseSets);
+  }
+
+  const items: ExercisePerformance[] = [];
+  const repeatedDeclineExerciseIds: string[] = [];
+
+  for (const [exerciseId, exerciseSets] of setsByExercise) {
+    const currentEntry = exerciseSets.findLast(
+      ({ date }) => date >= windowStart && date <= end
+    );
+    if (!currentEntry) {
+      continue;
+    }
+
+    const previousIndex = exerciseSets.findLastIndex(
+      ({ date }) => date < currentEntry.date
+    );
+    if (previousIndex < 0) {
+      continue;
+    }
+
+    const previousEntry = exerciseSets[previousIndex];
+    const historicalMax = Math.max(
+      ...exerciseSets
+        .slice(0, previousIndex + 1)
+        .filter(({ date }) => date < currentEntry.date)
+        .map(({ set }) => calculateE1Rm(set.weightKg, set.reps))
+    );
+    const currentE1Rm = calculateE1Rm(
+      currentEntry.set.weightKg,
+      currentEntry.set.reps
+    );
+    const currentChange = percentChange(currentEntry.set, previousEntry.set);
+
+    items.push({
+      exerciseId,
+      current: currentEntry.set,
+      previous: previousEntry.set,
+      percentChange: currentChange,
+      isPr: ((currentE1Rm - historicalMax) / historicalMax) * 100 > 0.5,
+      reliability:
+        Math.abs(currentEntry.set.rir - previousEntry.set.rir) > 1.5
+          ? "low"
+          : "normal"
+    });
+
+    const beforePreviousEntry = exerciseSets
+      .slice(0, previousIndex)
+      .findLast(({ date }) => date < previousEntry.date);
+    if (
+      beforePreviousEntry &&
+      percentChange(previousEntry.set, beforePreviousEntry.set) < -1 &&
+      currentChange < -1
+    ) {
+      repeatedDeclineExerciseIds.push(exerciseId);
+    }
+  }
+
+  items.sort((left, right) => left.exerciseId.localeCompare(right.exerciseId));
+  repeatedDeclineExerciseIds.sort((left, right) => left.localeCompare(right));
+
+  return {
+    overallPercent:
+      items.length === 0
+        ? null
+        : items.reduce((sum, item) => sum + item.percentChange, 0) / items.length,
+    comparableExercises: items.length,
+    items,
+    repeatedDeclineExerciseIds
+  };
+}
