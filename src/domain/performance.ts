@@ -23,9 +23,11 @@ export function calculateE1Rm(weightKg: number, reps: number): number {
 }
 
 function percentChange(current: TopSet, previous: TopSet): number {
-  const currentE1Rm = calculateE1Rm(current.weightKg, current.reps);
-  const previousE1Rm = calculateE1Rm(previous.weightKg, previous.reps);
-  return ((currentE1Rm - previousE1Rm) / previousE1Rm) * 100;
+  return (
+    ((current.estimated1RmKg - previous.estimated1RmKg) /
+      previous.estimated1RmKg) *
+    100
+  );
 }
 
 export function summarizePerformance(
@@ -74,12 +76,9 @@ export function summarizePerformance(
       ...exerciseSets
         .slice(0, previousIndex + 1)
         .filter(({ date }) => date < currentEntry.date)
-        .map(({ set }) => calculateE1Rm(set.weightKg, set.reps))
+        .map(({ set }) => set.estimated1RmKg)
     );
-    const currentE1Rm = calculateE1Rm(
-      currentEntry.set.weightKg,
-      currentEntry.set.reps
-    );
+    const currentE1Rm = currentEntry.set.estimated1RmKg;
     const currentChange = percentChange(currentEntry.set, previousEntry.set);
 
     items.push({

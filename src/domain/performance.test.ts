@@ -63,6 +63,42 @@ describe("summarizePerformance", () => {
     expect(summary.items[1]?.percentChange).toBeCloseTo(10);
   });
 
+  it("uses persisted estimated 1RM values instead of recalculating from weight and reps", () => {
+    const summary = summarizePerformance(
+      [
+        makeTopSet({
+          id: "squat-old",
+          exerciseId: "squat",
+          date: "2026-06-01",
+          weightKg: 100,
+          reps: 0,
+          estimated1RmKg: 120
+        }),
+        makeTopSet({
+          id: "squat-previous",
+          exerciseId: "squat",
+          date: "2026-06-10",
+          weightKg: 110,
+          reps: 0,
+          estimated1RmKg: 100
+        }),
+        makeTopSet({
+          id: "squat-current",
+          exerciseId: "squat",
+          date: "2026-06-18",
+          weightKg: 121,
+          reps: 0,
+          estimated1RmKg: 90
+        })
+      ],
+      "2026-06-18"
+    );
+
+    expect(summary.items[0]?.percentChange).toBeCloseTo(-10);
+    expect(summary.items[0]?.isPr).toBe(false);
+    expect(summary.repeatedDeclineExerciseIds).toEqual(["squat"]);
+  });
+
   it("excludes an exercise with no set before its current set", () => {
     const summary = summarizePerformance(
       [topSet("squat", "2026-06-18", 100)],
