@@ -86,6 +86,28 @@ describe("validateDailyEntry", () => {
       "Kvalita tréningu musí byť na škále 1–10."
     ]);
   });
+
+  it("rejects non-finite daily numeric values", () => {
+    expect(
+      validateDailyEntry(
+        makeDailyEntry({
+          weightKg: Number.NaN,
+          waistCm: Number.POSITIVE_INFINITY,
+          calories: Number.NaN,
+          sleepScore: Number.NaN,
+          readinessScore: Number.POSITIVE_INFINITY,
+          trainingQualityScore: Number.NEGATIVE_INFINITY
+        })
+      )
+    ).toEqual([
+      "Váha musí byť medzi 30 a 300 kg.",
+      "Pás musí byť medzi 40 a 250 cm.",
+      "Kalórie musia byť medzi 0 a 10 000.",
+      "Spánok musí byť na škále 1–10.",
+      "Pripravenosť musí byť na škále 1–10.",
+      "Kvalita tréningu musí byť na škále 1–10."
+    ]);
+  });
 });
 
 describe("validateTopSet", () => {
@@ -126,5 +148,21 @@ describe("validateTopSet", () => {
     { weightKg: 1000, reps: 100, rir: 10 }
   ])("accepts valid top-set boundaries %#", (values) => {
     expect(validateTopSet(makeTopSet(values))).toEqual([]);
+  });
+
+  it("rejects non-finite top-set numeric values", () => {
+    expect(
+      validateTopSet(
+        makeTopSet({
+          weightKg: Number.NaN,
+          reps: Number.POSITIVE_INFINITY,
+          rir: Number.NaN
+        })
+      )
+    ).toEqual([
+      "Váha musí byť väčšia ako 0 kg.",
+      "Opakovania musia byť 1–100.",
+      "RIR musí byť 0–10."
+    ]);
   });
 });

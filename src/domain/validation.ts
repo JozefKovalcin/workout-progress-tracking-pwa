@@ -1,11 +1,11 @@
 import type { DailyEntry, TopSet } from "./types";
 
 function isOutsideOptionalRange(value: number | undefined, min: number, max: number): boolean {
-  return value !== undefined && (value < min || value > max);
+  return value !== undefined && (!Number.isFinite(value) || value < min || value > max);
 }
 
 function isInvalidOptionalScore(value: number | undefined): boolean {
-  return value !== undefined && (!Number.isInteger(value) || value < 1 || value > 10);
+  return value !== undefined && (!Number.isFinite(value) || !Number.isInteger(value) || value < 1 || value > 10);
 }
 
 export function validateDailyEntry(entry: DailyEntry): string[] {
@@ -36,13 +36,13 @@ export function validateDailyEntry(entry: DailyEntry): string[] {
 export function validateTopSet(topSet: TopSet): string[] {
   const errors: string[] = [];
 
-  if (topSet.weightKg <= 0 || topSet.weightKg > 1000) {
+  if (!Number.isFinite(topSet.weightKg) || topSet.weightKg <= 0 || topSet.weightKg > 1000) {
     errors.push("Váha musí byť väčšia ako 0 kg.");
   }
-  if (!Number.isInteger(topSet.reps) || topSet.reps < 1 || topSet.reps > 100) {
+  if (!Number.isFinite(topSet.reps) || !Number.isInteger(topSet.reps) || topSet.reps < 1 || topSet.reps > 100) {
     errors.push("Opakovania musia byť 1–100.");
   }
-  if (topSet.rir < 0 || topSet.rir > 10) {
+  if (!Number.isFinite(topSet.rir) || topSet.rir < 0 || topSet.rir > 10) {
     errors.push("RIR musí byť 0–10.");
   }
 
