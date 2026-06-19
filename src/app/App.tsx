@@ -1,4 +1,4 @@
-import { addDays, differenceInCalendarDays, format, subDays } from "date-fns";
+import { addDays, format, subDays } from "date-fns";
 import { sk } from "date-fns/locale";
 import {
   useEffect,
@@ -29,6 +29,7 @@ import type {
   TrackerDataSource,
   TrackerSnapshot
 } from "../data/trackerData";
+import { anchorBlockEntries, deriveBlock } from "./recommendationFlow";
 
 type Mode = "demo" | "cloud";
 type Screen = "today" | "training" | "progress" | "settings";
@@ -144,16 +145,20 @@ function RecommendationCard({
 }) {
   const [open, setOpen] = useState(true);
   const profile = snapshot.profile!;
-  const blockEnd = toLocalDate(addDays(fromLocalDate(profile.startDate), profile.evaluationDays - 1));
-  const day = Math.max(1, Math.min(14, differenceInCalendarDays(fromLocalDate(today), fromLocalDate(profile.startDate)) + 1));
+  const { blockStart, blockEnd, day, actionable } = deriveBlock(
+    profile,
+    snapshot.targets,
+    snapshot.recommendations,
+    today
+  );
   const performance = summarizePerformance(snapshot.topSets, blockEnd);
-  const blockEntries = snapshot.dailyEntries.filter((entry) => entry.date >= profile.startDate && entry.date <= blockEnd);
+  const blockEntries = anchorBlockEntries(snapshot.dailyEntries, blockStart, blockEnd);
   const metrics = buildEvaluationMetrics(
     blockEntries,
     (date) => targetsForDate(snapshot.targets, date, resolveDayType(date, snapshot.trainingDays, blockEntries.find((row) => row.date === date)?.dayTypeOverride)),
     performance
   );
-  const evaluated = day < 14 ? null : evaluateRecommendation(metrics);
+  const evaluated = actionable ? evaluateRecommendation(metrics) : null;
   const stored = snapshot.recommendations.find((item) => item.id === blockEnd);
   const result = stored ?? evaluated;
 
@@ -162,22 +167,22 @@ function RecommendationCard({
     const recommendation: StoredRecommendation = {
       ...result,
       id: blockEnd,
-      windowStart: profile.startDate,
+      windowStart: blockStart,
       windowEnd: blockEnd,
       metrics,
       status: accepted ? "accepted" : "rejected",
-      decidedAtMs: new Date().valueOf()
+      decidedAtMs: fromLocalDate(today).valueOf()
     };
     let next: TargetPeriod | undefined;
     if (accepted) {
-      const effectiveDate = toLocalDate(addDays(fromLocalDate(blockEnd), 1));
+      const effectiveDate = toLocalDate(addDays(fromLocalDate(today), 1));
       next = {
         id: effectiveDate,
         effectiveDate,
         training: calculateMacros(currentTargets.training.calories + result.calorieDeltaTraining, profile.proteinGrams, profile.fatGrams),
         rest: calculateMacros(currentTargets.rest.calories + result.calorieDeltaRest, profile.proteinGrams, profile.fatGrams),
         reason: result.reasonCodes.join(", "),
-        createdAtMs: new Date().valueOf()
+        createdAtMs: fromLocalDate(today).valueOf()
       };
     }
     await data.decideRecommendation(uid, recommendation, next);
@@ -237,7 +242,9 @@ function TodayScreen({ snapshot, data, uid, now, onTraining }: {
   const waists = weekEntries.map((item) => item.waistCm);
   const adherence = average(weekEntries.map((item) => item.calories === undefined ? undefined : Math.abs(item.calories - targetsForDate(snapshot.targets, item.date, resolveDayType(item.date, snapshot.trainingDays, item.dayTypeOverride)).calories) / targetsForDate(snapshot.targets, item.date, resolveDayType(item.date, snapshot.trainingDays, item.dayTypeOverride)).calories * 100));
   const performance = summarizePerformance(snapshot.topSets, today);
-  const currentPeriod = [...snapshot.targets].sort((a, b) => b.effectiveDate.localeCompare(a.effectiveDate))[0];
+  const currentPeriod = [...snapshot.targets]
+    .filter((period) => period.effectiveDate <= today)
+    .sort((a, b) => b.effectiveDate.localeCompare(a.effectiveDate))[0];
 
   const save = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -517,21 +524,43 @@ export function App({ initialMode, now = new Date() }: AppProps) {
 
   useEffect(() => {
     if (mode !== "cloud") return;
-    let unsubscribe = () => {};
+    let cancelled = false;
+    let unsubscribe: (() => void) | undefined;
     void import("../data/trackerData").then((cloud) => {
+      if (cancelled) return;
       setData(cloud.cloudTrackerData);
-      unsubscribe = cloud.subscribeUser((user) => setUid(user?.uid ?? null));
+      const nextUnsubscribe = cloud.subscribeUser((user) => {
+        if (!cancelled) setUid(user?.uid ?? null);
+      });
+      if (cancelled) nextUnsubscribe();
+      else unsubscribe = nextUnsubscribe;
     });
-    return () => unsubscribe();
+    return () => {
+      cancelled = true;
+      unsubscribe?.();
+    };
   }, [mode]);
 
   useEffect(() => {
     if (!data || !uid) return;
-    let unsubscribe = () => {};
+    let cancelled = false;
+    let unsubscribe: (() => void) | undefined;
     void data.seedIfNeeded(uid).then(() => {
-      unsubscribe = data.subscribeTracker(uid, setSnapshot);
-    }).catch((error: unknown) => setAuthError(error instanceof Error ? error.message : "Dáta sa nepodarilo načítať."));
-    return () => unsubscribe();
+      if (cancelled) return;
+      const nextUnsubscribe = data.subscribeTracker(uid, (value) => {
+        if (!cancelled) setSnapshot(value);
+      });
+      if (cancelled) nextUnsubscribe();
+      else unsubscribe = nextUnsubscribe;
+    }).catch((error: unknown) => {
+      if (!cancelled) {
+        setAuthError(error instanceof Error ? error.message : "Dáta sa nepodarilo načítať.");
+      }
+    });
+    return () => {
+      cancelled = true;
+      unsubscribe?.();
+    };
   }, [data, uid]);
 
   const enterDemo = () => {
