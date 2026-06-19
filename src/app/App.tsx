@@ -283,6 +283,8 @@ function TodayScreen({ snapshot, data, uid, now, onTraining }: {
   const scheduledType = resolveDayType(date, snapshot.trainingDays);
   const [dayTypeOverride, setDayTypeOverride] = useState<DayType | null>(null);
   const [errors, setErrors] = useState<string[]>([]);
+  const [saving, setSaving] = useState(false);
+  const [saveMessage, setSaveMessage] = useState("");
   const dayType = dayTypeOverride ?? entry?.dayTypeOverride ?? scheduledType;
   const target = targetsForDate(snapshot.targets, date, dayType);
   const weekDates = new Set(recentDates(today, 7));
@@ -312,7 +314,19 @@ function TodayScreen({ snapshot, data, uid, now, onTraining }: {
     };
     const nextErrors = validateDailyEntry(value);
     setErrors(nextErrors);
-    if (!nextErrors.length) await data.saveDailyEntry(uid, value);
+    setSaveMessage("");
+    if (nextErrors.length) return;
+
+    setSaving(true);
+    try {
+      await data.saveDailyEntry(uid, value);
+      setSaveMessage("Deň uložený.");
+    } catch (error) {
+      const detail = error instanceof Error ? error.message : "Neznáma chyba.";
+      setSaveMessage(`Uloženie zlyhalo: ${detail}`);
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -326,7 +340,7 @@ function TodayScreen({ snapshot, data, uid, now, onTraining }: {
         <div><span className="pill">{dayType === "training" ? "Tréningový deň" : "Voľný deň"}</span><h2>{target.calories} kcal</h2><p>{target.proteinGrams} P · {Math.round(target.carbsGrams)} C · {target.fatGrams} F</p></div>
         <button className="day-toggle" onClick={() => setDayTypeOverride(dayType === "training" ? "rest" : "training")}>Prepnúť na {dayType === "training" ? "voľno" : "tréning"}</button>
       </section>
-      <form className="panel entry-form" key={`${date}-${entry?.updatedAtMs ?? 0}`} onSubmit={save}>
+      <form className="panel entry-form" key={`${date}-${entry?.updatedAtMs ?? 0}`} onSubmit={save} noValidate>
         <div className="section-title"><div><small>Záznam</small><h2>{date}</h2></div>{dayType === "training" && <button type="button" className="text-button" onClick={onTraining}>Otvoriť tréning →</button>}</div>
         <div className="form-grid">
           <label>Hmotnosť (kg)<input name="weightKg" type="number" step="0.1" defaultValue={entry?.weightKg ?? ""} /></label>
@@ -337,7 +351,8 @@ function TodayScreen({ snapshot, data, uid, now, onTraining }: {
           {dayType === "training" && <label>Kvalita tréningu 1–10<input name="trainingQualityScore" type="number" min="1" max="10" defaultValue={entry?.trainingQualityScore ?? ""} /></label>}
         </div>
         {errors.length > 0 && <div className="error">{errors.map((item) => <div key={item}>{item}</div>)}</div>}
-        <button className="primary" type="submit">Uložiť deň</button>
+        {saveMessage && <div className={saveMessage.startsWith("Uloženie zlyhalo") ? "error" : "save-success"}>{saveMessage}</div>}
+        <button className="primary" type="submit" disabled={saving}>{saving ? "Ukladám…" : "Uložiť deň"}</button>
       </form>
       <div className="stats-grid">
         <StatCard label="7 dní · hmotnosť" value={fmt(average(weights), " kg")} detail={trend(weekRows.map((row) => row?.weightKg), "kg")} />

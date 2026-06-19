@@ -318,6 +318,64 @@ describe("App demo mode", () => {
     expect(screen.getAllByRole("button", { name: "Nastavenia" })).toHaveLength(2);
   });
 
+  it("shows saving progress and confirms a saved daily entry", async () => {
+    let resolveSave = () => {};
+    const data = makeDataSource();
+    vi.mocked(data.saveDailyEntry).mockImplementation(
+      () => new Promise<void>((resolve) => {
+        resolveSave = resolve;
+      })
+    );
+    demoMock.source = data;
+    render(<App initialMode="demo" now={new Date(2026, 5, 19)} />);
+
+    fireEvent.change(await screen.findByLabelText("Hmotnosť (kg)"), {
+      target: { value: "81.4" }
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Uložiť deň" }));
+
+    expect(screen.getByRole("button", { name: "Ukladám…" })).toBeDisabled();
+
+    await act(async () => {
+      resolveSave();
+      await Promise.resolve();
+    });
+
+    expect(await screen.findByText("Deň uložený.")).toBeVisible();
+  });
+
+  it("shows app validation instead of silently blocking a decimal score", async () => {
+    render(<App initialMode="demo" now={new Date(2026, 5, 19)} />);
+
+    fireEvent.change(await screen.findByLabelText("Spánok 1–10"), {
+      target: { value: "7.5" }
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Uložiť deň" }));
+
+    expect(
+      await screen.findByText("Spánok musí byť na škále 1–10.")
+    ).toBeVisible();
+  });
+
+  it("shows a daily save error and unlocks the button", async () => {
+    const data = makeDataSource();
+    vi.mocked(data.saveDailyEntry).mockRejectedValue(
+      new Error("Missing or insufficient permissions.")
+    );
+    demoMock.source = data;
+    render(<App initialMode="demo" now={new Date(2026, 5, 19)} />);
+
+    fireEvent.change(await screen.findByLabelText("Hmotnosť (kg)"), {
+      target: { value: "81.4" }
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Uložiť deň" }));
+
+    expect(
+      await screen.findByText("Uloženie zlyhalo: Missing or insufficient permissions.")
+    ).toBeVisible();
+    expect(screen.getByRole("button", { name: "Uložiť deň" })).toBeEnabled();
+  });
+
   it("does not offer Accept on day 14", async () => {
     demoMock.source = makeDataSource(pendingSnapshot());
     render(<App initialMode="demo" now={new Date(2026, 6, 2)} />);

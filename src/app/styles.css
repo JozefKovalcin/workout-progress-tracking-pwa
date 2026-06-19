@@ -181,6 +181,7 @@ small { color: var(--muted); }
 .text-button { border: 0; padding: 4px; background: transparent; color: var(--muted); font-weight: 750; }
 .danger { color: var(--danger); }
 .error { margin: 10px 0; color: var(--danger); font-size: .85rem; font-weight: 650; }
+.save-success { margin: 10px 0; color: #397457; font-size: .85rem; font-weight: 750; }
 .stats-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
 .stat-card { display: grid; min-height: 118px; padding: 15px; border: 1px solid var(--line); border-radius: 16px; background: var(--surface); }
 .stat-card span { color: var(--muted); font-size: .72rem; font-weight: 750; }
