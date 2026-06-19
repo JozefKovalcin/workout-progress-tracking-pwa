@@ -3,6 +3,7 @@ import type { StoredRecommendation } from "./trackerData";
 
 const firestore = vi.hoisted(() => {
   let resolveCommit = () => {};
+  const setDoc = vi.fn();
   const commit = vi.fn(
     () =>
       new Promise<void>((resolve) => {
@@ -16,6 +17,7 @@ const firestore = vi.hoisted(() => {
   return {
     batch,
     commit,
+    setDoc,
     resolveCommit: () => resolveCommit()
   };
 });
@@ -27,7 +29,7 @@ vi.mock("firebase/firestore", () => ({
   getDocs: vi.fn(),
   onSnapshot: vi.fn(),
   serverTimestamp: vi.fn(() => "timestamp"),
-  setDoc: vi.fn(),
+  setDoc: firestore.setDoc,
   waitForPendingWrites: vi.fn(() => Promise.resolve()),
   writeBatch: vi.fn(() => firestore.batch)
 }));
@@ -38,7 +40,11 @@ vi.mock("./firebaseAuth", () => ({
   subscribeUser: vi.fn()
 }));
 
-import { decideRecommendation } from "./trackerData";
+import {
+  decideRecommendation,
+  saveDailyEntry,
+  saveTopSet
+} from "./trackerData";
 
 const recommendation = {
   id: "2026-07-02",
@@ -92,5 +98,43 @@ describe("cloud recommendation decisions", () => {
     expect(firestore.commit).toHaveBeenCalledTimes(2);
     firestore.resolveCommit();
     await expect(later).resolves.toBeUndefined();
+  });
+});
+
+describe("cloud writes", () => {
+  beforeEach(() => {
+    firestore.setDoc.mockClear();
+  });
+
+  it("omits undefined optional fields before sending data to Firestore", async () => {
+    await saveDailyEntry("user-1", {
+      date: "2026-06-19",
+      dayTypeOverride: undefined,
+      weightKg: 80.4,
+      waistCm: 82,
+      calories: 2900,
+      sleepScore: 8,
+      readinessScore: 10,
+      trainingQualityScore: 8,
+      updatedAtMs: 1
+    });
+
+    const dailyPayload = firestore.setDoc.mock.calls[0][1];
+    expect(dailyPayload).not.toHaveProperty("dayTypeOverride");
+
+    await saveTopSet("user-1", {
+      id: "2026-06-19__bench",
+      date: "2026-06-19",
+      exerciseId: "bench",
+      weightKg: 100,
+      reps: 8,
+      rir: 2,
+      note: undefined,
+      estimated1RmKg: 126.67,
+      updatedAtMs: 1
+    });
+
+    const topSetPayload = firestore.setDoc.mock.calls[1][1];
+    expect(topSetPayload).not.toHaveProperty("note");
   });
 });

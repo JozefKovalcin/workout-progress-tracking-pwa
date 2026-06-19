@@ -180,6 +180,12 @@ function path(uid: string, name: string) {
   return collection(db, "users", uid, name);
 }
 
+function firestoreData<T extends Record<string, unknown>>(value: T) {
+  return Object.fromEntries(
+    Object.entries(value).filter(([, fieldValue]) => fieldValue !== undefined)
+  );
+}
+
 async function queued(write: Promise<unknown>) {
   await write;
   syncStore.markLocal();
@@ -208,13 +214,13 @@ export async function seedIfNeeded(uid: string) {
     reason: "Počiatočná kalibrácia",
     createdAtMs: Date.now()
   } satisfies TargetPeriod;
-  batch.set(profileRef, { ...CALIBRATION_PROFILE, updatedAt: serverTimestamp() });
-  batch.set(doc(path(uid, "targetHistory"), target.id), { ...target, createdAt: serverTimestamp() });
+  batch.set(profileRef, firestoreData({ ...CALIBRATION_PROFILE, updatedAt: serverTimestamp() }));
+  batch.set(doc(path(uid, "targetHistory"), target.id), firestoreData({ ...target, createdAt: serverTimestamp() }));
   DEFAULT_EXERCISES.forEach((exercise) =>
-    batch.set(doc(path(uid, "exercises"), exercise.id), { ...exercise, updatedAt: serverTimestamp() })
+    batch.set(doc(path(uid, "exercises"), exercise.id), firestoreData({ ...exercise, updatedAt: serverTimestamp() }))
   );
   DEFAULT_TRAINING_DAYS.forEach((day) =>
-    batch.set(doc(path(uid, "trainingDays"), String(day.weekday)), { ...day, updatedAt: serverTimestamp() })
+    batch.set(doc(path(uid, "trainingDays"), String(day.weekday)), firestoreData({ ...day, updatedAt: serverTimestamp() }))
   );
   await queued(batch.commit());
 }
@@ -264,13 +270,13 @@ export function subscribeTracker(uid: string, cb: (value: TrackerSnapshot) => vo
 }
 
 export const saveDailyEntry = (uid: string, value: DailyEntry) =>
-  queued(setDoc(doc(path(uid, "dailyEntries"), value.date), { ...value, updatedAt: serverTimestamp() }));
+  queued(setDoc(doc(path(uid, "dailyEntries"), value.date), firestoreData({ ...value, updatedAt: serverTimestamp() })));
 export const saveTopSet = (uid: string, value: TopSet) =>
-  queued(setDoc(doc(path(uid, "topSets"), value.id), { ...value, updatedAt: serverTimestamp() }));
+  queued(setDoc(doc(path(uid, "topSets"), value.id), firestoreData({ ...value, updatedAt: serverTimestamp() })));
 export const saveExercise = (uid: string, value: Exercise) =>
-  queued(setDoc(doc(path(uid, "exercises"), value.id), { ...value, updatedAt: serverTimestamp() }));
+  queued(setDoc(doc(path(uid, "exercises"), value.id), firestoreData({ ...value, updatedAt: serverTimestamp() })));
 export const saveTrainingDay = (uid: string, value: TrainingDayPlan) =>
-  queued(setDoc(doc(path(uid, "trainingDays"), String(value.weekday)), { ...value, updatedAt: serverTimestamp() }));
+  queued(setDoc(doc(path(uid, "trainingDays"), String(value.weekday)), firestoreData({ ...value, updatedAt: serverTimestamp() })));
 
 const inFlightRecommendationDecisions = new Set<string>();
 
@@ -287,9 +293,9 @@ export async function decideRecommendation(
 
   try {
     const batch = writeBatch(db);
-    batch.set(doc(path(uid, "recommendations"), value.id), { ...value, decidedAt: serverTimestamp(), updatedAt: serverTimestamp() });
+    batch.set(doc(path(uid, "recommendations"), value.id), firestoreData({ ...value, decidedAt: serverTimestamp(), updatedAt: serverTimestamp() }));
     if (nextTargets) {
-      batch.set(doc(path(uid, "targetHistory"), nextTargets.id), { ...nextTargets, createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
+      batch.set(doc(path(uid, "targetHistory"), nextTargets.id), firestoreData({ ...nextTargets, createdAt: serverTimestamp(), updatedAt: serverTimestamp() }));
     }
     await queued(batch.commit());
   } finally {
