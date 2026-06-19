@@ -12,7 +12,7 @@ const WAIST_DAYS_MESSAGE = "Potrebné sú aspoň 4 merania pásu za 14 dní.";
 const CALORIE_ADHERENCE_MESSAGE =
   "Priemerná odchýlka od kalorického cieľa je vyššia než 10 %.";
 const INVALID_METRICS_MESSAGE =
-  "Povinné metriky musia byť konečné číselné hodnoty.";
+  "Vstupné metriky obsahujú neplatné alebo protichodné hodnoty.";
 const MISSING_PERFORMANCE_MESSAGE =
   "Na zvýšenie kalórií je potrebný aspoň jeden porovnateľný hlavný cvik.";
 
@@ -88,15 +88,7 @@ describe("evaluateRecommendation hard guards", () => {
     );
   });
 
-  it("rejects non-finite required metrics", () => {
-    expectHardGuard(
-      evaluateRecommendation(metrics({ weeklyWeightChangePct: Number.NaN })),
-      [INVALID_METRICS_MESSAGE],
-      ["INVALID_METRICS"]
-    );
-  });
-
-  it("accumulates every failed guard in rule order", () => {
+  it("gives invalid metrics precedence over data sufficiency guards", () => {
     expectHardGuard(
       evaluateRecommendation(
         metrics({
@@ -108,14 +100,8 @@ describe("evaluateRecommendation hard guards", () => {
           weeklyWeightChangeKg: Number.POSITIVE_INFINITY
         })
       ),
-      [
-        WEIGHT_MESSAGE,
-        CALORIE_DAYS_MESSAGE,
-        WAIST_DAYS_MESSAGE,
-        CALORIE_ADHERENCE_MESSAGE,
-        INVALID_METRICS_MESSAGE
-      ],
-      ["LOW_CALORIE_ADHERENCE", "INVALID_METRICS"]
+      [INVALID_METRICS_MESSAGE],
+      ["INVALID_METRICS"]
     );
   });
 
@@ -132,6 +118,171 @@ describe("evaluateRecommendation hard guards", () => {
 
     expect(result.status).toBe("hold");
     expect(result.missingData).toEqual([]);
+  });
+});
+
+describe("evaluateRecommendation invalid metric domains", () => {
+  it.each([
+    ["validWeightsWeek1", -1],
+    ["validWeightsWeek1", 1.5],
+    ["validWeightsWeek1", 8],
+    ["validWeightsWeek2", -1],
+    ["validWeightsWeek2", 1.5],
+    ["validWeightsWeek2", 8],
+    ["calorieDays", -1],
+    ["calorieDays", 1.5],
+    ["calorieDays", 15],
+    ["waistDays", -1],
+    ["waistDays", 1.5],
+    ["waistDays", 15]
+  ] satisfies Array<[keyof RecommendationMetrics, number]>)(
+    "rejects invalid count domain %s=%s",
+    (field, value) => {
+      expectHardGuard(
+        evaluateRecommendation(metrics({ [field]: value })),
+        [INVALID_METRICS_MESSAGE],
+        ["INVALID_METRICS"]
+      );
+    }
+  );
+
+  it("accepts maximum valid count boundaries", () => {
+    const result = evaluateRecommendation(
+      metrics({
+        validWeightsWeek1: 7,
+        validWeightsWeek2: 7,
+        calorieDays: 14,
+        waistDays: 14
+      })
+    );
+
+    expect(result.status).toBe("hold");
+    expect(result.reasonCodes).toEqual(["MONITOR_NEXT_BLOCK"]);
+  });
+
+  it("rejects negative calorie mean absolute error", () => {
+    expectHardGuard(
+      evaluateRecommendation(metrics({ calorieMeanAbsoluteErrorPct: -0.01 })),
+      [INVALID_METRICS_MESSAGE],
+      ["INVALID_METRICS"]
+    );
+  });
+
+  it.each([
+    ["averageSleep", 0],
+    ["averageSleep", 11],
+    ["averageReadiness", 0],
+    ["averageReadiness", 11],
+    ["averageTrainingQuality", 0],
+    ["averageTrainingQuality", 11]
+  ] satisfies Array<[keyof RecommendationMetrics, number]>)(
+    "rejects subjective average outside 1..10: %s=%s",
+    (field, value) => {
+      expectHardGuard(
+        evaluateRecommendation(metrics({ [field]: value })),
+        [INVALID_METRICS_MESSAGE],
+        ["INVALID_METRICS"]
+      );
+    }
+  );
+
+  it.each([
+    "validWeightsWeek1",
+    "validWeightsWeek2",
+    "calorieDays",
+    "waistDays",
+    "calorieMeanAbsoluteErrorPct",
+    "weeklyWeightChangePct",
+    "weeklyWeightChangeKg",
+    "waistChangeCm",
+    "performancePercent",
+    "averageSleep",
+    "averageReadiness",
+    "averageTrainingQuality"
+  ] satisfies Array<keyof RecommendationMetrics>)(
+    "rejects non-finite %s",
+    (field) => {
+      expectHardGuard(
+        evaluateRecommendation(metrics({ [field]: Number.NaN })),
+        [INVALID_METRICS_MESSAGE],
+        ["INVALID_METRICS"]
+      );
+    }
+  );
+
+  it.each([
+    [0.3, -0.25],
+    [-0.3, 0.25]
+  ])(
+    "rejects contradictory non-zero weight-change signs: pct=%s kg=%s",
+    (weeklyWeightChangePct, weeklyWeightChangeKg) => {
+      expectHardGuard(
+        evaluateRecommendation(
+          metrics({ weeklyWeightChangePct, weeklyWeightChangeKg })
+        ),
+        [INVALID_METRICS_MESSAGE],
+        ["INVALID_METRICS"]
+      );
+    }
+  );
+
+  it.each([
+    [1e-9, -100],
+    [-1e-9, 100],
+    [100, -1e-9],
+    [-100, 1e-9],
+    [0, -100],
+    [100, 0]
+  ])(
+    "treats an epsilon-zero weight change as non-contradictory: pct=%s kg=%s",
+    (weeklyWeightChangePct, weeklyWeightChangeKg) => {
+      const result = evaluateRecommendation(
+        metrics({ weeklyWeightChangePct, weeklyWeightChangeKg })
+      );
+
+      expect(result.reasonCodes).not.toContain("INVALID_METRICS");
+    }
+  );
+
+  it("does not impose arbitrary upper bounds on continuous metrics", () => {
+    const result = evaluateRecommendation(
+      metrics({
+        weeklyWeightChangePct: 1_000,
+        weeklyWeightChangeKg: 10_000,
+        waistChangeCm: -1_000,
+        performancePercent: 10_000
+      })
+    );
+
+    expect(result.status).toBe("hold");
+    expect(result.reasonCodes).toEqual(["MONITOR_NEXT_BLOCK"]);
+  });
+
+  it.each([
+    {
+      validWeightsWeek1: 8,
+      weeklyWeightChangePct: 0.51,
+      weeklyWeightChangeKg: 0.5,
+      waistChangeCm: 0.5
+    },
+    {
+      calorieDays: 15,
+      weeklyWeightChangePct: -0.51,
+      weeklyWeightChangeKg: -0.5,
+      performancePercent: -0.01
+    },
+    {
+      waistDays: 15,
+      weeklyWeightChangePct: 0,
+      weeklyWeightChangeKg: 0,
+      performancePercent: 0
+    }
+  ])("never lets invalid inputs reach pending action branches", (override) => {
+    expectHardGuard(
+      evaluateRecommendation(metrics(override)),
+      [INVALID_METRICS_MESSAGE],
+      ["INVALID_METRICS"]
+    );
   });
 });
 
@@ -198,6 +349,7 @@ describe("evaluateRecommendation decisions", () => {
       evaluateRecommendation(
         metrics({
           weeklyWeightChangePct: -0.51,
+          weeklyWeightChangeKg: -0.25,
           performancePercent: 0,
           repeatedExerciseDecline: true
         })
@@ -212,6 +364,7 @@ describe("evaluateRecommendation decisions", () => {
     const result = evaluateRecommendation(
       metrics({
         weeklyWeightChangePct: -0.51,
+        weeklyWeightChangeKg: -0.25,
         performancePercent,
         repeatedExerciseDecline
       })
@@ -229,6 +382,7 @@ describe("evaluateRecommendation decisions", () => {
         evaluateRecommendation(
           metrics({
             weeklyWeightChangePct,
+            weeklyWeightChangeKg: weeklyWeightChangePct,
             waistChangeCm: 0.49,
             performancePercent: 0
           })

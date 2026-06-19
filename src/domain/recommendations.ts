@@ -40,9 +40,10 @@ const WAIST_DAYS_MESSAGE = "Potrebné sú aspoň 4 merania pásu za 14 dní.";
 const CALORIE_ADHERENCE_MESSAGE =
   "Priemerná odchýlka od kalorického cieľa je vyššia než 10 %.";
 const INVALID_METRICS_MESSAGE =
-  "Povinné metriky musia byť konečné číselné hodnoty.";
+  "Vstupné metriky obsahujú neplatné alebo protichodné hodnoty.";
 const MISSING_PERFORMANCE_MESSAGE =
   "Na zvýšenie kalórií je potrebný aspoň jeden porovnateľný hlavný cvik.";
+const ZERO_EPSILON = 1e-9;
 
 function result(
   status: RecommendationStatus,
@@ -65,22 +66,73 @@ function result(
 }
 
 function hasInvalidMetrics(metrics: RecommendationMetrics): boolean {
-  const values = [
-    metrics.validWeightsWeek1,
-    metrics.validWeightsWeek2,
-    metrics.calorieDays,
-    metrics.waistDays,
-    metrics.calorieMeanAbsoluteErrorPct,
+  const counts: Array<[number, number]> = [
+    [metrics.validWeightsWeek1, 7],
+    [metrics.validWeightsWeek2, 7],
+    [metrics.calorieDays, 14],
+    [metrics.waistDays, 14]
+  ];
+  if (
+    counts.some(
+      ([value, maximum]) =>
+        !Number.isFinite(value) ||
+        !Number.isInteger(value) ||
+        value < 0 ||
+        value > maximum
+    )
+  ) {
+    return true;
+  }
+
+  if (
+    !Number.isFinite(metrics.calorieMeanAbsoluteErrorPct) ||
+    metrics.calorieMeanAbsoluteErrorPct < 0
+  ) {
+    return true;
+  }
+
+  const continuousValues = [
     metrics.weeklyWeightChangePct,
     metrics.weeklyWeightChangeKg,
-    metrics.waistChangeCm,
-    metrics.performancePercent,
+    metrics.waistChangeCm
+  ];
+  if (continuousValues.some((value) => !Number.isFinite(value))) {
+    return true;
+  }
+
+  if (
+    metrics.performancePercent !== null &&
+    !Number.isFinite(metrics.performancePercent)
+  ) {
+    return true;
+  }
+
+  const subjectives = [
     metrics.averageSleep,
     metrics.averageReadiness,
     metrics.averageTrainingQuality
   ];
+  if (
+    subjectives.some(
+      (value) =>
+        value !== null &&
+        (!Number.isFinite(value) || value < 1 || value > 10)
+    )
+  ) {
+    return true;
+  }
 
-  return values.some((value) => value !== null && !Number.isFinite(value));
+  const percentageIsNonZero =
+    Math.abs(metrics.weeklyWeightChangePct) > ZERO_EPSILON;
+  const kilogramsAreNonZero =
+    Math.abs(metrics.weeklyWeightChangeKg) > ZERO_EPSILON;
+
+  return (
+    percentageIsNonZero &&
+    kilogramsAreNonZero &&
+    Math.sign(metrics.weeklyWeightChangePct) !==
+      Math.sign(metrics.weeklyWeightChangeKg)
+  );
 }
 
 function recommendationConfidence(metrics: RecommendationMetrics): Confidence {
@@ -98,6 +150,18 @@ function recommendationConfidence(metrics: RecommendationMetrics): Confidence {
 export function evaluateRecommendation(
   metrics: RecommendationMetrics
 ): RecommendationResult {
+  if (hasInvalidMetrics(metrics)) {
+    return result(
+      "insufficient",
+      "none",
+      0,
+      0,
+      "low",
+      ["INVALID_METRICS"],
+      [INVALID_METRICS_MESSAGE]
+    );
+  }
+
   const reasonCodes: string[] = [];
   const missingData: string[] = [];
 
@@ -114,11 +178,6 @@ export function evaluateRecommendation(
     reasonCodes.push("LOW_CALORIE_ADHERENCE");
     missingData.push(CALORIE_ADHERENCE_MESSAGE);
   }
-  if (hasInvalidMetrics(metrics)) {
-    reasonCodes.push("INVALID_METRICS");
-    missingData.push(INVALID_METRICS_MESSAGE);
-  }
-
   if (missingData.length > 0) {
     return result(
       "insufficient",
