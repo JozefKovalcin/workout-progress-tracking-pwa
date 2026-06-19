@@ -37,6 +37,7 @@ const seedState = (): DemoState => ({
 
 export function createDemoTrackerData(storage: Storage): TrackerDataSource {
   const listeners = new Set<(value: TrackerSnapshot) => void>();
+  const inFlightRecommendationDecisions = new Set<string>();
   const read = (): DemoState => {
     try {
       const raw = storage.getItem(DEMO_STORAGE_KEY);
@@ -86,11 +87,22 @@ export function createDemoTrackerData(storage: Storage): TrackerDataSource {
       upsert(state.trainingDays, value, "weekday");
       write(state);
     },
-    async decideRecommendation(_uid, value: StoredRecommendation, nextTargets?: TargetPeriod) {
-      const state = read();
-      upsert(state.recommendations, value, "id");
-      if (nextTargets) upsert(state.targets, nextTargets, "id");
-      write(state);
+    async decideRecommendation(uid, value: StoredRecommendation, nextTargets?: TargetPeriod) {
+      const lockKey = `${uid}:${value.id}`;
+      if (inFlightRecommendationDecisions.has(lockKey)) {
+        throw new Error("Rozhodnutie sa už ukladá.");
+      }
+      inFlightRecommendationDecisions.add(lockKey);
+
+      try {
+        await Promise.resolve();
+        const state = read();
+        upsert(state.recommendations, value, "id");
+        if (nextTargets) upsert(state.targets, nextTargets, "id");
+        write(state);
+      } finally {
+        inFlightRecommendationDecisions.delete(lockKey);
+      }
     },
     async exportAll() {
       return structuredClone(read()) as unknown as Record<string, unknown>;

@@ -2,6 +2,7 @@ import { addDays, format, subDays } from "date-fns";
 import { sk } from "date-fns/locale";
 import {
   useEffect,
+  useRef,
   useState,
   useSyncExternalStore,
   type FormEvent
@@ -29,7 +30,11 @@ import type {
   TrackerDataSource,
   TrackerSnapshot
 } from "../data/trackerData";
-import { anchorBlockEntries, deriveBlock } from "./recommendationFlow";
+import {
+  advanceInformationalBlocks,
+  anchorBlockEntries,
+  deriveBlock
+} from "./recommendationFlow";
 
 type Mode = "demo" | "cloud";
 type Screen = "today" | "training" | "progress" | "settings";
@@ -144,26 +149,59 @@ function RecommendationCard({
   uid: string;
 }) {
   const [open, setOpen] = useState(true);
+  const [deciding, setDeciding] = useState(false);
+  const [decisionError, setDecisionError] = useState("");
+  const decidingRef = useRef(false);
   const profile = snapshot.profile!;
-  const { blockStart, blockEnd, day, actionable } = deriveBlock(
+  const markerBlock = deriveBlock(
     profile,
     snapshot.targets,
     snapshot.recommendations,
     today
   );
-  const performance = summarizePerformance(snapshot.topSets, blockEnd);
-  const blockEntries = anchorBlockEntries(snapshot.dailyEntries, blockStart, blockEnd);
-  const metrics = buildEvaluationMetrics(
-    blockEntries,
-    (date) => targetsForDate(snapshot.targets, date, resolveDayType(date, snapshot.trainingDays, blockEntries.find((row) => row.date === date)?.dayTypeOverride)),
-    performance
-  );
-  const evaluated = actionable ? evaluateRecommendation(metrics) : null;
-  const stored = snapshot.recommendations.find((item) => item.id === blockEnd);
-  const result = stored ?? evaluated;
+  const evaluateBlock = (blockStart: LocalDate, blockEnd: LocalDate) => {
+    const performance = summarizePerformance(snapshot.topSets, blockEnd);
+    const blockEntries = anchorBlockEntries(
+      snapshot.dailyEntries,
+      blockStart,
+      blockEnd
+    );
+    const metrics = buildEvaluationMetrics(
+      blockEntries,
+      (date) =>
+        targetsForDate(
+          snapshot.targets,
+          date,
+          resolveDayType(
+            date,
+            snapshot.trainingDays,
+            blockEntries.find((row) => row.date === date)?.dayTypeOverride
+          )
+        ),
+      performance
+    );
+    const stored = snapshot.recommendations.find((item) => item.id === blockEnd);
+    return {
+      metrics,
+      result: stored ?? evaluateRecommendation(metrics)
+    };
+  };
+  const { blockStart, blockEnd, day, actionable } =
+    advanceInformationalBlocks(
+      markerBlock.blockStart,
+      profile.evaluationDays,
+      today,
+      (start, end) => evaluateBlock(start, end).result.status
+    );
+  const evaluation = actionable ? evaluateBlock(blockStart, blockEnd) : null;
+  const metrics = evaluation?.metrics;
+  const result = evaluation?.result ?? null;
 
   const decide = async (accepted: boolean) => {
-    if (!result) return;
+    if (!result || !metrics || decidingRef.current) return;
+    decidingRef.current = true;
+    setDeciding(true);
+    setDecisionError("");
     const recommendation: StoredRecommendation = {
       ...result,
       id: blockEnd,
@@ -185,7 +223,18 @@ function RecommendationCard({
         createdAtMs: fromLocalDate(today).valueOf()
       };
     }
-    await data.decideRecommendation(uid, recommendation, next);
+    try {
+      await data.decideRecommendation(uid, recommendation, next);
+    } catch (error) {
+      setDecisionError(
+        error instanceof Error
+          ? error.message
+          : "Rozhodnutie sa nepodarilo uložiť."
+      );
+    } finally {
+      decidingRef.current = false;
+      setDeciding(false);
+    }
   };
 
   return (
@@ -211,7 +260,8 @@ function RecommendationCard({
               </div>
               <p>Istota: <strong>{result.confidence}</strong></p>
               <ul>{result.reasonCodes.map((code) => <li key={code}>{reasonLabels[code] ?? code}</li>)}</ul>
-              <div className="button-row"><button className="primary" onClick={() => void decide(true)}>Prijať</button><button className="secondary" onClick={() => void decide(false)}>Odmietnuť</button></div>
+              <div className="button-row"><button className="primary" disabled={deciding} onClick={() => void decide(true)}>{deciding ? "Ukladám…" : "Prijať"}</button><button className="secondary" disabled={deciding} onClick={() => void decide(false)}>Odmietnuť</button></div>
+              {decisionError && <p className="error">{decisionError}</p>}
             </>
           )}
         </div>

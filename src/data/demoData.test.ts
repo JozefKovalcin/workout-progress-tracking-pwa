@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { calculateE1Rm } from "../domain/performance";
-import type { TrackerSnapshot } from "./trackerData";
+import type { StoredRecommendation, TrackerSnapshot } from "./trackerData";
 import { createDemoTrackerData, DEMO_STORAGE_KEY } from "./demoData";
 
 describe("demo tracker data", () => {
@@ -58,5 +58,50 @@ describe("demo tracker data", () => {
         estimated1RmKg: 152
       })
     ]);
+  });
+
+  it("rejects overlapping decisions and allows a later separate decision", async () => {
+    const data = createDemoTrackerData(localStorage);
+    await data.seedIfNeeded("demo");
+    const recommendation = {
+      id: "2026-07-02",
+      windowStart: "2026-06-19",
+      windowEnd: "2026-07-02",
+      status: "rejected",
+      action: "none",
+      calorieDeltaTraining: 0,
+      calorieDeltaRest: 0,
+      confidence: "high",
+      reasonCodes: [],
+      missingData: [],
+      metrics: {
+        validWeightsWeek1: 7,
+        validWeightsWeek2: 7,
+        calorieDays: 14,
+        waistDays: 14,
+        calorieMeanAbsoluteErrorPct: 0,
+        weeklyWeightChangePct: 0,
+        weeklyWeightChangeKg: 0,
+        waistChangeCm: 0,
+        performancePercent: 0,
+        repeatedExerciseDecline: false,
+        averageSleep: 8,
+        averageReadiness: 8,
+        averageTrainingQuality: 8
+      }
+    } satisfies StoredRecommendation;
+
+    const first = data.decideRecommendation("demo", recommendation);
+    await expect(
+      data.decideRecommendation("demo", recommendation)
+    ).rejects.toThrow("Rozhodnutie sa už ukladá.");
+    await first;
+
+    await expect(
+      data.decideRecommendation("demo", {
+        ...recommendation,
+        status: "accepted"
+      })
+    ).resolves.toBeUndefined();
   });
 });

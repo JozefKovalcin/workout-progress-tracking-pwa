@@ -13,7 +13,11 @@ import type {
   TrackerSnapshot
 } from "../data/trackerData";
 import { App } from "./App";
-import { anchorBlockEntries, deriveBlock } from "./recommendationFlow";
+import {
+  advanceInformationalBlocks,
+  anchorBlockEntries,
+  deriveBlock
+} from "./recommendationFlow";
 
 const demoMock = vi.hoisted(() => ({
   source: null as TrackerDataSource | null
@@ -135,6 +139,83 @@ function pendingSnapshot(overrides: Partial<TrackerSnapshot> = {}) {
 }
 
 describe("recommendation flow helpers", () => {
+  it("advances an initial hold result to the next block", () => {
+    expect(
+      advanceInformationalBlocks(
+        "2026-06-19",
+        14,
+        "2026-07-03",
+        () => "hold"
+      )
+    ).toMatchObject({
+      blockStart: "2026-07-03",
+      blockEnd: "2026-07-16",
+      actionable: false
+    });
+  });
+
+  it("advances an insufficient result to the next block", () => {
+    expect(
+      advanceInformationalBlocks(
+        "2026-06-19",
+        14,
+        "2026-07-03",
+        () => "insufficient"
+      ).blockStart
+    ).toBe("2026-07-03");
+  });
+
+  it("keeps an actionable pending proposal fixed", () => {
+    expect(
+      advanceInformationalBlocks(
+        "2026-06-19",
+        14,
+        "2026-07-17",
+        () => "pending"
+      )
+    ).toMatchObject({
+      blockStart: "2026-06-19",
+      blockEnd: "2026-07-02",
+      actionable: true
+    });
+  });
+
+  it("advances across multiple informational blocks", () => {
+    const statuses = ["hold", "insufficient"] as const;
+
+    expect(
+      advanceInformationalBlocks(
+        "2026-06-19",
+        14,
+        "2026-07-17",
+        (_blockStart, _blockEnd, index) => statuses[index]
+      )
+    ).toMatchObject({
+      blockStart: "2026-07-17",
+      blockEnd: "2026-07-30",
+      day: 1,
+      actionable: false
+    });
+  });
+
+  it("stops on an incomplete current block without evaluating it", () => {
+    const evaluate = vi.fn(() => "hold" as const);
+
+    expect(
+      advanceInformationalBlocks(
+        "2026-06-19",
+        14,
+        "2026-07-02",
+        evaluate
+      )
+    ).toMatchObject({
+      blockStart: "2026-06-19",
+      blockEnd: "2026-07-02",
+      actionable: false
+    });
+    expect(evaluate).not.toHaveBeenCalled();
+  });
+
   it("makes a block actionable only after its fourteenth date", () => {
     expect(deriveBlock(profile, [initialTarget], [], "2026-07-02")).toMatchObject({
       blockStart: "2026-06-19",
@@ -264,6 +345,48 @@ describe("App demo mode", () => {
     expect(recommendation.id).toBe("2026-07-02");
     expect(recommendation.decidedAtMs).toBe(fromLocalDate("2026-07-05").valueOf());
     expect(target?.effectiveDate).toBe("2026-07-06");
+  });
+
+  it("locks both recommendation decisions after the first rapid click", async () => {
+    let resolveDecision = () => {};
+    const data = makeDataSource(pendingSnapshot());
+    vi.mocked(data.decideRecommendation).mockImplementation(
+      () => new Promise<void>((resolve) => {
+        resolveDecision = resolve;
+      })
+    );
+    demoMock.source = data;
+    render(<App initialMode="demo" now={new Date(2026, 6, 3)} />);
+
+    const accept = await screen.findByRole("button", { name: "Prijať" });
+    const reject = screen.getByRole("button", { name: "Odmietnuť" });
+    fireEvent.click(accept);
+    fireEvent.click(reject);
+
+    expect(data.decideRecommendation).toHaveBeenCalledOnce();
+    expect(accept).toBeDisabled();
+    expect(reject).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Ukladám…" })).toBeVisible();
+
+    await act(async () => {
+      resolveDecision();
+      await Promise.resolve();
+    });
+  });
+
+  it("unlocks recommendation decisions and shows an error after a failed save", async () => {
+    const data = makeDataSource(pendingSnapshot());
+    vi.mocked(data.decideRecommendation).mockRejectedValue(
+      new Error("Rozhodnutie sa už ukladá.")
+    );
+    demoMock.source = data;
+    render(<App initialMode="demo" now={new Date(2026, 6, 3)} />);
+
+    fireEvent.click(await screen.findByRole("button", { name: "Prijať" }));
+
+    expect(await screen.findByText("Rozhodnutie sa už ukladá.")).toBeVisible();
+    expect(screen.getByRole("button", { name: "Prijať" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Odmietnuť" })).toBeEnabled();
   });
 
   it("keeps the accepted state before its future target starts without offering a new action", async () => {

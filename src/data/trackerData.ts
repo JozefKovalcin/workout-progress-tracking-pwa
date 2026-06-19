@@ -272,17 +272,29 @@ export const saveExercise = (uid: string, value: Exercise) =>
 export const saveTrainingDay = (uid: string, value: TrainingDayPlan) =>
   queued(setDoc(doc(path(uid, "trainingDays"), String(value.weekday)), { ...value, updatedAt: serverTimestamp() }));
 
+const inFlightRecommendationDecisions = new Set<string>();
+
 export async function decideRecommendation(
   uid: string,
   value: StoredRecommendation,
   nextTargets?: TargetPeriod
 ) {
-  const batch = writeBatch(db);
-  batch.set(doc(path(uid, "recommendations"), value.id), { ...value, decidedAt: serverTimestamp(), updatedAt: serverTimestamp() });
-  if (nextTargets) {
-    batch.set(doc(path(uid, "targetHistory"), nextTargets.id), { ...nextTargets, createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
+  const lockKey = `${uid}:${value.id}`;
+  if (inFlightRecommendationDecisions.has(lockKey)) {
+    throw new Error("Rozhodnutie sa už ukladá.");
   }
-  await queued(batch.commit());
+  inFlightRecommendationDecisions.add(lockKey);
+
+  try {
+    const batch = writeBatch(db);
+    batch.set(doc(path(uid, "recommendations"), value.id), { ...value, decidedAt: serverTimestamp(), updatedAt: serverTimestamp() });
+    if (nextTargets) {
+      batch.set(doc(path(uid, "targetHistory"), nextTargets.id), { ...nextTargets, createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
+    }
+    await queued(batch.commit());
+  } finally {
+    inFlightRecommendationDecisions.delete(lockKey);
+  }
 }
 
 export async function exportAll(uid: string) {
