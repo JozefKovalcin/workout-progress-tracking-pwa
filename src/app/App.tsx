@@ -516,11 +516,15 @@ export function App({ initialMode, now = new Date() }: AppProps) {
   const [mode, setMode] = useState<Mode | null>(() => initialMode ?? localStorage.getItem(MODE_KEY) as Mode | null);
   const [uid, setUid] = useState<string | null>(mode === "demo" ? "demo" : null);
   const [data, setData] = useState<TrackerDataSource | null>(() => mode === "demo" ? createDemoTrackerData(localStorage) : null);
-  const [snapshot, setSnapshot] = useState<TrackerSnapshot>(EMPTY);
+  const [snapshotState, setSnapshotState] = useState<{
+    ownerUid: string | null;
+    snapshot: TrackerSnapshot;
+  }>({ ownerUid: null, snapshot: EMPTY });
   const [screen, setScreen] = useState<Screen>("today");
   const [authError, setAuthError] = useState("");
   const today = toLocalDate(now);
   const allowDemo = import.meta.env.VITE_USE_FIREBASE_EMULATORS === "true" || initialMode === "demo";
+  const snapshot = snapshotState.ownerUid === uid ? snapshotState.snapshot : EMPTY;
 
   useEffect(() => {
     if (mode !== "cloud") return;
@@ -530,7 +534,15 @@ export function App({ initialMode, now = new Date() }: AppProps) {
       if (cancelled) return;
       setData(cloud.cloudTrackerData);
       const nextUnsubscribe = cloud.subscribeUser((user) => {
-        if (!cancelled) setUid(user?.uid ?? null);
+        if (!cancelled) {
+          const nextUid = user?.uid ?? null;
+          setUid(nextUid);
+          setSnapshotState((current) =>
+            current.ownerUid === nextUid
+              ? current
+              : { ownerUid: nextUid, snapshot: EMPTY }
+          );
+        }
       });
       if (cancelled) nextUnsubscribe();
       else unsubscribe = nextUnsubscribe;
@@ -548,7 +560,7 @@ export function App({ initialMode, now = new Date() }: AppProps) {
     void data.seedIfNeeded(uid).then(() => {
       if (cancelled) return;
       const nextUnsubscribe = data.subscribeTracker(uid, (value) => {
-        if (!cancelled) setSnapshot(value);
+        if (!cancelled) setSnapshotState({ ownerUid: uid, snapshot: value });
       });
       if (cancelled) nextUnsubscribe();
       else unsubscribe = nextUnsubscribe;
@@ -567,6 +579,7 @@ export function App({ initialMode, now = new Date() }: AppProps) {
     localStorage.setItem(MODE_KEY, "demo");
     setMode("demo");
     setUid("demo");
+    setSnapshotState({ ownerUid: "demo", snapshot: EMPTY });
     setData(createDemoTrackerData(localStorage));
   };
   const enterCloud = async () => {
@@ -589,7 +602,7 @@ export function App({ initialMode, now = new Date() }: AppProps) {
     setMode(null);
     setUid(null);
     setData(null);
-    setSnapshot(EMPTY);
+    setSnapshotState({ ownerUid: null, snapshot: EMPTY });
   };
   const switchTodayToTraining = async () => {
     if (!data || !uid) return;

@@ -18,9 +18,22 @@ import { anchorBlockEntries, deriveBlock } from "./recommendationFlow";
 const demoMock = vi.hoisted(() => ({
   source: null as TrackerDataSource | null
 }));
+const cloudMock = vi.hoisted(() => ({
+  source: null as TrackerDataSource | null,
+  authCallback: null as ((user: { uid: string } | null) => void) | null
+}));
 
 vi.mock("../data/demoData", () => ({
   createDemoTrackerData: () => demoMock.source
+}));
+vi.mock("../data/trackerData", () => ({
+  cloudTrackerData: cloudMock.source,
+  subscribeUser: (callback: (user: { uid: string } | null) => void) => {
+    cloudMock.authCallback = callback;
+    return vi.fn();
+  },
+  signInWithGoogle: vi.fn().mockResolvedValue(undefined),
+  signOutCurrentUser: vi.fn().mockResolvedValue(undefined)
 }));
 
 const profile = {
@@ -307,5 +320,59 @@ describe("App demo mode", () => {
     });
 
     expect(data.subscribeTracker).not.toHaveBeenCalled();
+  });
+});
+
+describe("App cloud mode", () => {
+  beforeEach(() => {
+    localStorage.clear();
+    cloudMock.source = null;
+    cloudMock.authCallback = null;
+  });
+
+  it("hides the previous user's snapshot while the next user is loading", async () => {
+    let resolveUserBSeed = () => {};
+    const userASnapshot = makeSnapshot({
+      exercises: [{
+        id: "user-a-only",
+        name: "User A only exercise",
+        muscleGroup: "Test",
+        repMin: 6,
+        repMax: 12,
+        isMain: true
+      }]
+    });
+    const data = makeDataSource(userASnapshot, vi.fn((uid: string) => {
+      if (uid === "user-b") {
+        return new Promise<void>((resolve) => {
+          resolveUserBSeed = resolve;
+        });
+      }
+      return Promise.resolve();
+    }));
+    cloudMock.source = data;
+
+    render(<App initialMode="cloud" now={new Date(2026, 5, 19)} />);
+
+    await waitFor(() => expect(cloudMock.authCallback).not.toBeNull());
+    act(() => cloudMock.authCallback?.({ uid: "user-a" }));
+    fireEvent.click((await screen.findAllByRole("button", { name: "Nastavenia" }))[0]);
+    expect(await screen.findByDisplayValue("User A only exercise")).toBeVisible();
+
+    act(() => cloudMock.authCallback?.({ uid: "user-b" }));
+
+    const staleInput = screen.queryByDisplayValue("User A only exercise");
+    if (staleInput) fireEvent.submit(staleInput.closest("form")!);
+
+    expect(staleInput).not.toBeInTheDocument();
+    expect(data.saveExercise).not.toHaveBeenCalledWith(
+      "user-b",
+      expect.objectContaining({ id: "user-a-only" })
+    );
+
+    await act(async () => {
+      resolveUserBSeed();
+      await Promise.resolve();
+    });
   });
 });
