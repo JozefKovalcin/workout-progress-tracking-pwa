@@ -227,14 +227,29 @@ describe("evaluateRecommendation invalid metric domains", () => {
   );
 
   it.each([
-    [1e-9, -100],
-    [-1e-9, 100],
-    [100, -1e-9],
-    [-100, 1e-9],
-    [0, -100],
-    [100, 0]
+    [1e-9, 0.25],
+    [-1e-9, -0.25],
+    [0.25, 1e-9],
+    [-0.25, -1e-9]
   ])(
-    "treats an epsilon-zero weight change as non-contradictory: pct=%s kg=%s",
+    "rejects a weight-change pair when only one side is effectively zero: pct=%s kg=%s",
+    (weeklyWeightChangePct, weeklyWeightChangeKg) => {
+      expectHardGuard(
+        evaluateRecommendation(
+          metrics({ weeklyWeightChangePct, weeklyWeightChangeKg })
+        ),
+        [INVALID_METRICS_MESSAGE],
+        ["INVALID_METRICS"]
+      );
+    }
+  );
+
+  it.each([
+    [1e-9, -1e-9],
+    [-1e-9, 1e-9],
+    [0, 0]
+  ])(
+    "accepts a weight-change pair when both sides are effectively zero: pct=%s kg=%s",
     (weeklyWeightChangePct, weeklyWeightChangeKg) => {
       const result = evaluateRecommendation(
         metrics({ weeklyWeightChangePct, weeklyWeightChangeKg })
@@ -404,6 +419,7 @@ describe("evaluateRecommendation decisions", () => {
       evaluateRecommendation(
         metrics({
           weeklyWeightChangePct: 0,
+          weeklyWeightChangeKg: 0,
           waistChangeCm: 0.2,
           performancePercent: null
         })
@@ -423,6 +439,7 @@ describe("evaluateRecommendation decisions", () => {
     const result = evaluateRecommendation(
       metrics({
         weeklyWeightChangePct: 0,
+        weeklyWeightChangeKg: 0,
         performancePercent: -0.01
       })
     );

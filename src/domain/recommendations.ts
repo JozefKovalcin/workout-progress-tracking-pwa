@@ -43,7 +43,8 @@ const INVALID_METRICS_MESSAGE =
   "Vstupné metriky obsahujú neplatné alebo protichodné hodnoty.";
 const MISSING_PERFORMANCE_MESSAGE =
   "Na zvýšenie kalórií je potrebný aspoň jeden porovnateľný hlavný cvik.";
-const ZERO_EPSILON = 1e-9;
+const WEIGHT_CHANGE_PCT_EPSILON = 1e-9;
+const WEIGHT_CHANGE_KG_EPSILON = 1e-9;
 
 function result(
   status: RecommendationStatus,
@@ -123,15 +124,16 @@ function hasInvalidMetrics(metrics: RecommendationMetrics): boolean {
   }
 
   const percentageIsNonZero =
-    Math.abs(metrics.weeklyWeightChangePct) > ZERO_EPSILON;
+    Math.abs(metrics.weeklyWeightChangePct) > WEIGHT_CHANGE_PCT_EPSILON;
   const kilogramsAreNonZero =
-    Math.abs(metrics.weeklyWeightChangeKg) > ZERO_EPSILON;
+    Math.abs(metrics.weeklyWeightChangeKg) > WEIGHT_CHANGE_KG_EPSILON;
 
   return (
-    percentageIsNonZero &&
-    kilogramsAreNonZero &&
-    Math.sign(metrics.weeklyWeightChangePct) !==
-      Math.sign(metrics.weeklyWeightChangeKg)
+    percentageIsNonZero !== kilogramsAreNonZero ||
+    (percentageIsNonZero &&
+      kilogramsAreNonZero &&
+      Math.sign(metrics.weeklyWeightChangePct) !==
+        Math.sign(metrics.weeklyWeightChangeKg))
   );
 }
 
