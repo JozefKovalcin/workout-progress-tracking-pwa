@@ -386,6 +386,102 @@ describe("App demo mode", () => {
     );
   });
 
+  it("saves two working sets and shows their average e1RM", async () => {
+    const data = makeDataSource(makeSnapshot({
+      exercises: [{
+        id: "bench",
+        name: "Bench press",
+        muscleGroup: "Hrudník",
+        repMin: 6,
+        repMax: 10,
+        isMain: true
+      }],
+      trainingDays: [{
+        weekday: 5,
+        label: "Push",
+        enabled: true,
+        exerciseIds: ["bench"]
+      }]
+    }));
+    demoMock.source = data;
+    render(<App initialMode="demo" now={new Date(2026, 5, 19)} />);
+
+    fireEvent.click((await screen.findAllByRole("button", { name: "Tréning" }))[0]);
+    fireEvent.change(await screen.findByLabelText("Séria 1 kg"), {
+      target: { value: "100" }
+    });
+    fireEvent.change(screen.getByLabelText("Séria 1 opakovania"), {
+      target: { value: "6" }
+    });
+    fireEvent.change(screen.getByLabelText("Séria 1 RIR"), {
+      target: { value: "2" }
+    });
+    fireEvent.change(screen.getByLabelText("Séria 2 kg"), {
+      target: { value: "90" }
+    });
+    fireEvent.change(screen.getByLabelText("Séria 2 opakovania"), {
+      target: { value: "10" }
+    });
+    fireEvent.change(screen.getByLabelText("Séria 2 RIR"), {
+      target: { value: "1" }
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Uložiť 2 série" }));
+
+    await waitFor(() => expect(data.saveTopSet).toHaveBeenCalledOnce());
+    expect(data.saveTopSet).toHaveBeenCalledWith(
+      "demo",
+      expect.objectContaining({
+        weightKg: 100,
+        reps: 6,
+        rir: 2,
+        sets: [
+          expect.objectContaining({ weightKg: 100, reps: 6, rir: 2 }),
+          expect.objectContaining({ weightKg: 90, reps: 10, rir: 1 })
+        ]
+      })
+    );
+    expect(await screen.findByText(/Priemerné e1RM 120\.0 kg/)).toBeVisible();
+    expect(screen.getByText("Tréning uložený.")).toBeVisible();
+  });
+
+  it("shows a training save error and unlocks the two-set button", async () => {
+    const data = makeDataSource(makeSnapshot({
+      exercises: [{
+        id: "bench",
+        name: "Bench press",
+        muscleGroup: "Hrudník",
+        repMin: 6,
+        repMax: 10,
+        isMain: true
+      }],
+      trainingDays: [{
+        weekday: 5,
+        label: "Push",
+        enabled: true,
+        exerciseIds: ["bench"]
+      }]
+    }));
+    vi.mocked(data.saveTopSet).mockRejectedValue(new Error("Cloud je nedostupný."));
+    demoMock.source = data;
+    render(<App initialMode="demo" now={new Date(2026, 5, 19)} />);
+
+    fireEvent.click((await screen.findAllByRole("button", { name: "Tréning" }))[0]);
+    for (const [label, value] of [
+      ["Séria 1 kg", "100"],
+      ["Séria 1 opakovania", "6"],
+      ["Séria 1 RIR", "2"],
+      ["Séria 2 kg", "90"],
+      ["Séria 2 opakovania", "10"],
+      ["Séria 2 RIR", "1"]
+    ]) {
+      fireEvent.change(await screen.findByLabelText(label), { target: { value } });
+    }
+    fireEvent.click(screen.getByRole("button", { name: "Uložiť 2 série" }));
+
+    expect(await screen.findByText("Uloženie tréningu zlyhalo: Cloud je nedostupný.")).toBeVisible();
+    expect(screen.getByRole("button", { name: "Uložiť 2 série" })).toBeEnabled();
+  });
+
   it("shows app validation instead of silently blocking a decimal score", async () => {
     render(<App initialMode="demo" now={new Date(2026, 5, 19)} />);
 

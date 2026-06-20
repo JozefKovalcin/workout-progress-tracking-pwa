@@ -23,6 +23,7 @@ import type {
   TrackerProfile,
   TrainingDayPlan
 } from "../domain/types";
+import { validateTopSet } from "../domain/validation";
 import type {
   RecommendationMetrics,
   RecommendationResult
@@ -131,14 +132,34 @@ function mapDay(value: DocumentData): TrainingDayPlan | null {
 }
 
 function mapTopSet(value: DocumentData, id: string): TopSet | null {
-  return isLocalDate(value.date) &&
+  if (!(isLocalDate(value.date) &&
     text(value.exerciseId) &&
     finite(value.weightKg) &&
     finite(value.reps) &&
     finite(value.rir) &&
-    finite(value.estimated1RmKg)
-    ? { ...value, id, updatedAtMs: stampMs(value, "updatedAtMs") } as TopSet
-    : null;
+    finite(value.estimated1RmKg))) {
+    return null;
+  }
+  if (
+    value.sets !== undefined &&
+    (!Array.isArray(value.sets) ||
+      value.sets.length !== 2 ||
+      value.sets.some((set: DocumentData) =>
+        !set ||
+        !finite(set.weightKg) ||
+        !finite(set.reps) ||
+        !finite(set.rir) ||
+        !finite(set.estimated1RmKg)
+      ))
+  ) {
+    return null;
+  }
+  const candidate = {
+    ...value,
+    id,
+    updatedAtMs: stampMs(value, "updatedAtMs")
+  } as TopSet;
+  return validateTopSet(candidate).length === 0 ? candidate : null;
 }
 
 function mapTarget(value: DocumentData, id: string): TargetPeriod | null {

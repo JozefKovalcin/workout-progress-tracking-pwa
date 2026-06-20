@@ -60,6 +60,36 @@ describe("demo tracker data", () => {
     ]);
   });
 
+  it("round-trips both working sets", async () => {
+    const data = createDemoTrackerData(localStorage);
+    await data.seedIfNeeded("demo");
+
+    await data.saveTopSet("demo", {
+      id: "2026-06-19__rdl",
+      date: "2026-06-19",
+      exerciseId: "rdl",
+      weightKg: 120,
+      reps: 8,
+      rir: 1,
+      estimated1RmKg: 152,
+      sets: [
+        { weightKg: 120, reps: 8, rir: 1, estimated1RmKg: 152 },
+        { weightKg: 110, reps: 10, rir: 2, estimated1RmKg: 146.67 }
+      ],
+      updatedAtMs: 1
+    });
+
+    const exported = await data.exportAll("demo");
+    expect(exported.topSets).toEqual([
+      expect.objectContaining({
+        sets: [
+          expect.objectContaining({ weightKg: 120, reps: 8 }),
+          expect.objectContaining({ weightKg: 110, reps: 10 })
+        ]
+      })
+    ]);
+  });
+
   it("rejects overlapping decisions and allows a later separate decision", async () => {
     const data = createDemoTrackerData(localStorage);
     await data.seedIfNeeded("demo");

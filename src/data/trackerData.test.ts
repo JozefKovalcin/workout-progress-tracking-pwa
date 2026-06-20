@@ -4,6 +4,7 @@ import type { StoredRecommendation } from "./trackerData";
 const firestore = vi.hoisted(() => {
   let resolveCommit = () => {};
   const setDoc = vi.fn();
+  const onSnapshot = vi.fn();
   const commit = vi.fn(
     () =>
       new Promise<void>((resolve) => {
@@ -18,6 +19,7 @@ const firestore = vi.hoisted(() => {
     batch,
     commit,
     setDoc,
+    onSnapshot,
     resolveCommit: () => resolveCommit()
   };
 });
@@ -27,7 +29,7 @@ vi.mock("firebase/firestore", () => ({
   doc: vi.fn(),
   getDoc: vi.fn(),
   getDocs: vi.fn(),
-  onSnapshot: vi.fn(),
+  onSnapshot: firestore.onSnapshot,
   serverTimestamp: vi.fn(() => "timestamp"),
   setDoc: firestore.setDoc,
   waitForPendingWrites: vi.fn(() => Promise.resolve()),
@@ -43,7 +45,8 @@ vi.mock("./firebaseAuth", () => ({
 import {
   decideRecommendation,
   saveDailyEntry,
-  saveTopSet
+  saveTopSet,
+  subscribeTracker
 } from "./trackerData";
 
 const recommendation = {
@@ -136,5 +139,66 @@ describe("cloud writes", () => {
 
     const topSetPayload = firestore.setDoc.mock.calls[1][1];
     expect(topSetPayload).not.toHaveProperty("note");
+  });
+
+  it("writes both working sets to Firestore", async () => {
+    await saveTopSet("user-1", {
+      id: "2026-06-19__bench",
+      date: "2026-06-19",
+      exerciseId: "bench",
+      weightKg: 100,
+      reps: 6,
+      rir: 2,
+      estimated1RmKg: 120,
+      sets: [
+        { weightKg: 100, reps: 6, rir: 2, estimated1RmKg: 120 },
+        { weightKg: 90, reps: 10, rir: 1, estimated1RmKg: 120 }
+      ],
+      updatedAtMs: 1
+    });
+
+    expect(firestore.setDoc.mock.calls[0][1]).toEqual(
+      expect.objectContaining({
+        sets: [
+          expect.objectContaining({ weightKg: 100, reps: 6 }),
+          expect.objectContaining({ weightKg: 90, reps: 10 })
+        ]
+      })
+    );
+  });
+});
+
+describe("cloud top-set reads", () => {
+  beforeEach(() => {
+    firestore.onSnapshot.mockClear();
+  });
+
+  it("rejects a malformed second working set", () => {
+    const listener = vi.fn();
+    subscribeTracker("user-1", listener);
+    const topSetCallback = firestore.onSnapshot.mock.calls[4][1];
+
+    topSetCallback({
+      docs: [{
+        id: "2026-06-19__bench",
+        data: () => ({
+          date: "2026-06-19",
+          exerciseId: "bench",
+          weightKg: 100,
+          reps: 6,
+          rir: 2,
+          estimated1RmKg: 120,
+          sets: [
+            { weightKg: 100, reps: 6, rir: 2, estimated1RmKg: 120 },
+            { weightKg: 0, reps: 10, rir: 1, estimated1RmKg: 0 }
+          ],
+          updatedAtMs: 1
+        })
+      }]
+    });
+
+    expect(listener).toHaveBeenLastCalledWith(
+      expect.objectContaining({ topSets: [] })
+    );
   });
 });

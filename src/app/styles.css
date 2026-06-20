@@ -204,8 +204,12 @@ small { color: var(--muted); }
 .exercise-card { padding: 18px; }
 .exercise-heading span { color: var(--muted); font-size: .75rem; }
 .previous, .set-result { margin-bottom: 12px; color: var(--muted); font-size: .8rem; }
+.working-sets { display: grid; gap: 10px; margin-bottom: 12px; }
+.working-set { min-width: 0; margin: 0; padding: 12px; border: 1px solid var(--line); border-radius: 14px; }
+.working-set legend { padding: 0 6px; color: var(--text); font-size: .78rem; font-weight: 800; }
 .topset-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 12px; }
-.topset-grid .note { grid-column: 1 / -1; }
+.working-set .topset-grid { margin-bottom: 0; }
+.exercise-card > .note { margin-bottom: 12px; }
 .empty-state { padding: 28px; text-align: center; }
 .empty-state p { color: var(--muted); }
 .progress-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }

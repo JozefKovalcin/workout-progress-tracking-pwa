@@ -10,7 +10,11 @@ import {
 import { buildEvaluationMetrics } from "../domain/analytics";
 import { fromLocalDate, toLocalDate, weekdayIso } from "../domain/date";
 import { calculateMacros, resolveDayType } from "../domain/macros";
-import { calculateE1Rm, summarizePerformance } from "../domain/performance";
+import {
+  calculateE1Rm,
+  summarizePerformance,
+  workoutE1Rm
+} from "../domain/performance";
 import { evaluateRecommendation } from "../domain/recommendations";
 import type {
   DailyEntry,
@@ -390,40 +394,85 @@ function TopSetForm({ exercise, date, sets, save }: {
   const current = sets.find((item) => item.date === date && item.exerciseId === exercise.id);
   const previous = [...sets].filter((item) => item.exerciseId === exercise.id && item.date < date).sort((a, b) => b.date.localeCompare(a.date))[0];
   const [errors, setErrors] = useState<string[]>([]);
+  const [saving, setSaving] = useState(false);
+  const [saveMessage, setSaveMessage] = useState("");
+  const [savedAverage, setSavedAverage] = useState<number | null>(null);
+  const currentSets = current?.sets?.length === 2
+    ? current.sets
+    : current
+      ? [{
+          weightKg: current.weightKg,
+          reps: current.reps,
+          rir: current.rir,
+          estimated1RmKg: current.estimated1RmKg
+        }]
+      : [];
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
-    const weightKg = Number(form.get("weightKg"));
-    const reps = Number(form.get("reps"));
+    const workingSets = [1, 2].map((index) => {
+      const weightKg = Number(form.get(`weightKg${index}`));
+      const reps = Number(form.get(`reps${index}`));
+      return {
+        weightKg,
+        reps,
+        rir: Number(form.get(`rir${index}`)),
+        estimated1RmKg: calculateE1Rm(weightKg, reps)
+      };
+    });
+    const first = workingSets[0];
     const value: TopSet = {
       id: `${date}__${exercise.id}`,
       date,
       exerciseId: exercise.id,
-      weightKg,
-      reps,
-      rir: Number(form.get("rir")),
+      weightKg: first.weightKg,
+      reps: first.reps,
+      rir: first.rir,
       note: String(form.get("note") ?? "").trim() || undefined,
-      estimated1RmKg: calculateE1Rm(weightKg, reps),
+      estimated1RmKg: first.estimated1RmKg,
+      sets: workingSets,
       updatedAtMs: new Date().valueOf()
     };
     const nextErrors = validateTopSet(value);
     setErrors(nextErrors);
-    if (!nextErrors.length) await save(value);
+    setSaveMessage("");
+    if (nextErrors.length) return;
+
+    setSaving(true);
+    try {
+      await save(value);
+      setSavedAverage(workoutE1Rm(value));
+      setSaveMessage("Tréning uložený.");
+    } catch (error) {
+      const detail = error instanceof Error ? error.message : "Neznáma chyba.";
+      setSaveMessage(`Uloženie tréningu zlyhalo: ${detail}`);
+    } finally {
+      setSaving(false);
+    }
   };
-  const change = current && previous ? (current.estimated1RmKg - previous.estimated1RmKg) / previous.estimated1RmKg * 100 : null;
+  const change = current && previous ? (workoutE1Rm(current) - workoutE1Rm(previous)) / workoutE1Rm(previous) * 100 : null;
+  const displayedAverage = savedAverage ?? (current ? workoutE1Rm(current) : null);
   return (
-    <form className="exercise-card" onSubmit={submit} key={`${exercise.id}-${current?.updatedAtMs ?? 0}`}>
+    <form className="exercise-card" onSubmit={submit} noValidate key={`${exercise.id}-${current?.updatedAtMs ?? 0}`}>
       <div className="exercise-heading"><div><small>{exercise.muscleGroup}</small><h3>{exercise.name}</h3></div><span>{exercise.repMin}–{exercise.repMax} op.</span></div>
-      {previous && <p className="previous">Predtým {previous.weightKg} kg × {previous.reps} · e1RM {previous.estimated1RmKg.toFixed(1)} kg</p>}
-      <div className="topset-grid">
-        <label>kg<input required name="weightKg" type="number" step="0.1" defaultValue={current?.weightKg ?? ""} /></label>
-        <label>op.<input required name="reps" type="number" min="1" defaultValue={current?.reps ?? ""} /></label>
-        <label>RIR<input required name="rir" type="number" step="0.5" min="0" max="10" defaultValue={current?.rir ?? ""} /></label>
-        <label className="note">Poznámka<input name="note" defaultValue={current?.note ?? ""} /></label>
+      {previous && <p className="previous">Predtým · priemerné e1RM {workoutE1Rm(previous).toFixed(1)} kg</p>}
+      <div className="working-sets">
+        {[0, 1].map((setIndex) => (
+          <fieldset className="working-set" key={setIndex}>
+            <legend>Séria {setIndex + 1}</legend>
+            <div className="topset-grid">
+              <label>Séria {setIndex + 1} kg<input name={`weightKg${setIndex + 1}`} type="number" step="0.1" defaultValue={currentSets[setIndex]?.weightKg ?? ""} /></label>
+              <label>Séria {setIndex + 1} opakovania<input name={`reps${setIndex + 1}`} type="number" min="1" defaultValue={currentSets[setIndex]?.reps ?? ""} /></label>
+              <label>Séria {setIndex + 1} RIR<input name={`rir${setIndex + 1}`} type="number" step="0.5" min="0" max="10" defaultValue={currentSets[setIndex]?.rir ?? ""} /></label>
+            </div>
+          </fieldset>
+        ))}
       </div>
-      {current && <p className="set-result">e1RM {current.estimated1RmKg.toFixed(1)} kg {change !== null && `· ${change >= 0 ? "+" : ""}${change.toFixed(1)} %`}</p>}
+      <label className="note">Poznámka<input name="note" defaultValue={current?.note ?? ""} /></label>
+      {displayedAverage !== null && <p className="set-result">Priemerné e1RM {displayedAverage.toFixed(1)} kg {change !== null && `· ${change >= 0 ? "+" : ""}${change.toFixed(1)} %`}</p>}
       {errors.length > 0 && <div className="error">{errors.join(" ")}</div>}
-      <button className="secondary" type="submit">Uložiť top set</button>
+      {saveMessage && <div className={saveMessage.startsWith("Uloženie") ? "error" : "save-success"}>{saveMessage}</div>}
+      <button className="secondary" type="submit" disabled={saving}>{saving ? "Ukladám…" : "Uložiť 2 série"}</button>
     </form>
   );
 }
