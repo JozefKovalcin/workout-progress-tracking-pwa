@@ -44,6 +44,13 @@ export interface TrainingDayPlan {
   exerciseIds: string[];
 }
 
+export interface WorkingSet {
+  weightKg: number;
+  reps: number;
+  rir: number;
+  estimated1RmKg: number;
+}
+
 export interface TopSet {
   id: string;
   date: LocalDate;
@@ -53,6 +60,7 @@ export interface TopSet {
   rir: number;
   note?: string;
   estimated1RmKg: number;
+  sets?: WorkingSet[];
   updatedAtMs: number;
 }
 

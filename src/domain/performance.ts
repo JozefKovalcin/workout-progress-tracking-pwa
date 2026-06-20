@@ -22,10 +22,24 @@ export function calculateE1Rm(weightKg: number, reps: number): number {
   return weightKg * (1 + reps / 30);
 }
 
+export function workoutE1Rm(set: TopSet): number {
+  const values = set.sets?.map((item) => item.estimated1RmKg);
+  return values?.length
+    ? values.reduce((sum, value) => sum + value, 0) / values.length
+    : set.estimated1RmKg;
+}
+
+function workoutRir(set: TopSet): number {
+  const values = set.sets?.map((item) => item.rir);
+  return values?.length
+    ? values.reduce((sum, value) => sum + value, 0) / values.length
+    : set.rir;
+}
+
 function percentChange(current: TopSet, previous: TopSet): number {
   return (
-    ((current.estimated1RmKg - previous.estimated1RmKg) /
-      previous.estimated1RmKg) *
+    ((workoutE1Rm(current) - workoutE1Rm(previous)) /
+      workoutE1Rm(previous)) *
     100
   );
 }
@@ -76,9 +90,9 @@ export function summarizePerformance(
       ...exerciseSets
         .slice(0, previousIndex + 1)
         .filter(({ date }) => date < currentEntry.date)
-        .map(({ set }) => set.estimated1RmKg)
+        .map(({ set }) => workoutE1Rm(set))
     );
-    const currentE1Rm = currentEntry.set.estimated1RmKg;
+    const currentE1Rm = workoutE1Rm(currentEntry.set);
     const currentChange = percentChange(currentEntry.set, previousEntry.set);
 
     items.push({
@@ -88,7 +102,7 @@ export function summarizePerformance(
       percentChange: currentChange,
       isPr: ((currentE1Rm - historicalMax) / historicalMax) * 100 > 0.5,
       reliability:
-        Math.abs(currentEntry.set.rir - previousEntry.set.rir) > 1.5
+        Math.abs(workoutRir(currentEntry.set) - workoutRir(previousEntry.set)) > 1.5
           ? "low"
           : "normal"
     });

@@ -111,6 +111,23 @@ describe("validateDailyEntry", () => {
 });
 
 describe("validateTopSet", () => {
+  it("validates both working sets", () => {
+    expect(
+      validateTopSet(
+        makeTopSet({
+          sets: [
+            { weightKg: 100, reps: 8, rir: 2, estimated1RmKg: 126.67 },
+            { weightKg: 0, reps: 8.5, rir: 11, estimated1RmKg: 0 }
+          ]
+        } as Parameters<typeof makeTopSet>[0])
+      )
+    ).toEqual([
+      "Séria 2: Váha musí byť väčšia ako 0 kg.",
+      "Séria 2: Opakovania musia byť 1–100.",
+      "Séria 2: RIR musí byť 0–10."
+    ]);
+  });
+
   it("rejects non-positive weight, decimal reps, and out-of-range RIR", () => {
     expect(
       validateTopSet(

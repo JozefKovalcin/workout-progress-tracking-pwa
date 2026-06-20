@@ -1,4 +1,4 @@
-import type { DailyEntry, TopSet } from "./types";
+import type { DailyEntry, TopSet, WorkingSet } from "./types";
 
 function isOutsideOptionalRange(value: number | undefined, min: number, max: number): boolean {
   return value !== undefined && (!Number.isFinite(value) || value < min || value > max);
@@ -33,18 +33,31 @@ export function validateDailyEntry(entry: DailyEntry): string[] {
   return errors;
 }
 
-export function validateTopSet(topSet: TopSet): string[] {
+function validateWorkingSet(set: WorkingSet, prefix = ""): string[] {
   const errors: string[] = [];
 
-  if (!Number.isFinite(topSet.weightKg) || topSet.weightKg <= 0 || topSet.weightKg > 1000) {
-    errors.push("Váha musí byť väčšia ako 0 kg.");
+  if (!Number.isFinite(set.weightKg) || set.weightKg <= 0 || set.weightKg > 1000) {
+    errors.push(`${prefix}Váha musí byť väčšia ako 0 kg.`);
   }
-  if (!Number.isFinite(topSet.reps) || !Number.isInteger(topSet.reps) || topSet.reps < 1 || topSet.reps > 100) {
-    errors.push("Opakovania musia byť 1–100.");
+  if (!Number.isFinite(set.reps) || !Number.isInteger(set.reps) || set.reps < 1 || set.reps > 100) {
+    errors.push(`${prefix}Opakovania musia byť 1–100.`);
   }
-  if (!Number.isFinite(topSet.rir) || topSet.rir < 0 || topSet.rir > 10) {
-    errors.push("RIR musí byť 0–10.");
+  if (!Number.isFinite(set.rir) || set.rir < 0 || set.rir > 10) {
+    errors.push(`${prefix}RIR musí byť 0–10.`);
   }
 
   return errors;
+}
+
+export function validateTopSet(topSet: TopSet): string[] {
+  if (topSet.sets) {
+    if (topSet.sets.length !== 2) {
+      return ["Zadaj presne 2 pracovné série."];
+    }
+    return topSet.sets.flatMap((set, index) =>
+      validateWorkingSet(set, `Séria ${index + 1}: `)
+    );
+  }
+
+  return validateWorkingSet(topSet);
 }

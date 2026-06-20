@@ -27,6 +27,40 @@ describe("calculateE1Rm", () => {
 });
 
 describe("summarizePerformance", () => {
+  it("compares the average e1RM of two working sets", () => {
+    const summary = summarizePerformance(
+      [
+        makeTopSet({
+          id: "squat-previous",
+          exerciseId: "squat",
+          date: "2026-06-10",
+          weightKg: 1,
+          reps: 1,
+          estimated1RmKg: 1,
+          sets: [
+            { weightKg: 90, reps: 10, rir: 2, estimated1RmKg: 100 },
+            { weightKg: 90, reps: 10, rir: 2, estimated1RmKg: 100 }
+          ]
+        } as Partial<TopSet>),
+        makeTopSet({
+          id: "squat-current",
+          exerciseId: "squat",
+          date: "2026-06-18",
+          weightKg: 1,
+          reps: 1,
+          estimated1RmKg: 1,
+          sets: [
+            { weightKg: 100, reps: 9, rir: 2, estimated1RmKg: 108 },
+            { weightKg: 100, reps: 10, rir: 2, estimated1RmKg: 112 }
+          ]
+        } as Partial<TopSet>)
+      ],
+      "2026-06-18"
+    );
+
+    expect(summary.items[0]?.percentChange).toBeCloseTo(10);
+  });
+
   it("summarizes positive changes for two exercises with an equal-weight mean", () => {
     const summary = summarizePerformance(
       [
