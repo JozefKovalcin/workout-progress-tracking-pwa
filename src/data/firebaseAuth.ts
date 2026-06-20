@@ -33,7 +33,7 @@ export const signInWithGoogle = async () => {
   try {
     await signInWithPopup(auth, provider);
   } catch (error) {
-    throw new Error(authErrorMessage(error));
+    throw new Error(authErrorMessage(error), { cause: error });
   }
 };
 

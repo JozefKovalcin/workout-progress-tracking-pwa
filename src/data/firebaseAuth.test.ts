@@ -56,4 +56,14 @@ describe("Firebase authentication", () => {
       "Prihlásenie zlyhalo. Skontroluj pripojenie a skús to znova."
     );
   });
+
+  it("keeps the original Firebase failure as the error cause", async () => {
+    const firebaseError = { code: "auth/popup-blocked" };
+    authMock.popup.mockRejectedValue(firebaseError);
+
+    await expect(signInWithGoogle()).rejects.toMatchObject({
+      message: "Prehliadač zablokoval prihlasovacie okno. Povoľ vyskakovacie okná a skús to znova.",
+      cause: firebaseError
+    });
+  });
 });
