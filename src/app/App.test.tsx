@@ -1,7 +1,7 @@
 /// <reference types="@testing-library/jest-dom" />
 
 import { addDays } from "date-fns";
-import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { calculateMacros } from "../domain/macros";
 import { buildEvaluationMetrics } from "../domain/analytics";
@@ -411,6 +411,7 @@ describe("App demo mode", () => {
     render(<App initialMode="demo" now={new Date(2026, 5, 19)} />);
 
     fireEvent.click((await screen.findAllByRole("button", { name: "Tréning" }))[0]);
+    expect(document.querySelectorAll(".working-sets .working-set")).toHaveLength(2);
     fireEvent.change(await screen.findByLabelText("Séria 1 kg"), {
       target: { value: "100" }
     });
@@ -526,6 +527,9 @@ describe("App demo mode", () => {
     expect(screen.getByRole("img", { name: "Graf pásu" })).toBeVisible();
     expect(screen.getByRole("img", { name: "Graf kalórií" })).toBeVisible();
     expect(screen.getByRole("img", { name: "Graf sily Bench press" })).toBeVisible();
+    const chartGrid = document.querySelector(".chart-grid");
+    expect(chartGrid).toBeInTheDocument();
+    expect(within(chartGrid as HTMLElement).getAllByRole("img")).toHaveLength(4);
   });
 
   it("shows app validation instead of silently blocking a decimal score", async () => {

@@ -267,9 +267,24 @@ small { color: var(--muted); }
 
 @media (min-width: 860px) {
   .sidebar { display: flex; }
-  .content { margin-left: 230px; padding: 34px 34px 50px; width: calc(100% - 230px); max-width: 1130px; }
+  .content {
+    width: calc(100% - 230px);
+    max-width: none;
+    margin: 0 0 0 230px;
+    padding: 34px 34px 50px;
+  }
+  .content > .screen { width: min(100%, 1800px); }
   .bottom-nav { display: none; }
   .screen { gap: 20px; }
   .stats-grid { grid-template-columns: repeat(4, 1fr); }
   .form-grid { grid-template-columns: repeat(3, 1fr); }
+}
+
+@media (min-width: 1200px) {
+  .working-sets { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+@media (min-width: 1500px) {
+  .chart-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .exercise-list { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
