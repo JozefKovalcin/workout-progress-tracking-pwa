@@ -344,6 +344,48 @@ describe("App demo mode", () => {
     expect(await screen.findByText("Deň uložený.")).toBeVisible();
   });
 
+  it("saves all daily score fields together", async () => {
+    const data = makeDataSource();
+    demoMock.source = data;
+    render(<App initialMode="demo" now={new Date(2026, 5, 19)} />);
+
+    fireEvent.change(await screen.findByLabelText("Hmotnosť (kg)"), {
+      target: { value: "80.4" }
+    });
+    fireEvent.change(screen.getByLabelText("Pás (cm)"), {
+      target: { value: "82" }
+    });
+    fireEvent.change(screen.getByLabelText("Kalórie"), {
+      target: { value: "2900" }
+    });
+    fireEvent.change(screen.getByLabelText("Spánok 1–10"), {
+      target: { value: "8" }
+    });
+    fireEvent.change(screen.getByLabelText("Pripravenosť 1–10"), {
+      target: { value: "10" }
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Prepnúť na tréning" }));
+    fireEvent.change(screen.getByLabelText("Kvalita tréningu 1–10"), {
+      target: { value: "8" }
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Uložiť deň" }));
+
+    await waitFor(() => expect(data.saveDailyEntry).toHaveBeenCalledOnce());
+    expect(data.saveDailyEntry).toHaveBeenCalledWith(
+      "demo",
+      expect.objectContaining({
+        date: "2026-06-19",
+        dayTypeOverride: "training",
+        weightKg: 80.4,
+        waistCm: 82,
+        calories: 2900,
+        sleepScore: 8,
+        readinessScore: 10,
+        trainingQualityScore: 8
+      })
+    );
+  });
+
   it("shows app validation instead of silently blocking a decimal score", async () => {
     render(<App initialMode="demo" now={new Date(2026, 5, 19)} />);
 
