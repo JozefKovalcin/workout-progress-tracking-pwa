@@ -7,6 +7,7 @@ import { calculateMacros } from "../domain/macros";
 import { buildEvaluationMetrics } from "../domain/analytics";
 import { fromLocalDate, toLocalDate } from "../domain/date";
 import type { DailyEntry, LocalDate, TargetPeriod, TopSet } from "../domain/types";
+import { makeTopSet } from "../test/fixtures";
 import type {
   StoredRecommendation,
   TrackerDataSource,
@@ -480,6 +481,48 @@ describe("App demo mode", () => {
 
     expect(await screen.findByText("Uloženie tréningu zlyhalo: Cloud je nedostupný.")).toBeVisible();
     expect(screen.getByRole("button", { name: "Uložiť 2 série" })).toBeEnabled();
+  });
+
+  it("shows selectable weight, waist, calorie and exercise-strength charts", async () => {
+    demoMock.source = makeDataSource(makeSnapshot({
+      dailyEntries: [
+        { date: "2026-06-14", weightKg: 80, waistCm: 82, calories: 2800, updatedAtMs: 1 },
+        { date: "2026-06-20", weightKg: 81, waistCm: 82.5, calories: 2900, updatedAtMs: 2 }
+      ],
+      exercises: [{
+        id: "bench",
+        name: "Bench press",
+        muscleGroup: "Hrudník",
+        repMin: 6,
+        repMax: 10,
+        isMain: true
+      }],
+      topSets: [
+        makeTopSet({ id: "old", date: "2026-06-14", exerciseId: "bench", estimated1RmKg: 100 }),
+        makeTopSet({
+          id: "new",
+          date: "2026-06-20",
+          exerciseId: "bench",
+          sets: [
+            { weightKg: 100, reps: 6, rir: 2, estimated1RmKg: 120 },
+            { weightKg: 90, reps: 10, rir: 1, estimated1RmKg: 120 }
+          ]
+        })
+      ]
+    }));
+    render(<App initialMode="demo" now={new Date(2026, 5, 20)} />);
+
+    fireEvent.click((await screen.findAllByRole("button", { name: "Progress" }))[0]);
+
+    expect(await screen.findByRole("button", { name: "7 dní" })).toBeVisible();
+    expect(screen.getByRole("button", { name: "30 dní" })).toBeVisible();
+    expect(screen.getByRole("button", { name: "90 dní" })).toBeVisible();
+    expect(screen.getByRole("button", { name: "Všetko" })).toBeVisible();
+    expect(screen.getByLabelText("Cvik pre graf sily")).toHaveValue("bench");
+    expect(screen.getByRole("img", { name: "Graf hmotnosti" })).toBeVisible();
+    expect(screen.getByRole("img", { name: "Graf pásu" })).toBeVisible();
+    expect(screen.getByRole("img", { name: "Graf kalórií" })).toBeVisible();
+    expect(screen.getByRole("img", { name: "Graf sily Bench press" })).toBeVisible();
   });
 
   it("shows app validation instead of silently blocking a decimal score", async () => {

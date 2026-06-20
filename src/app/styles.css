@@ -38,10 +38,10 @@
 * { box-sizing: border-box; }
 html { background: var(--bg); }
 body { margin: 0; min-width: 320px; min-height: 100vh; background: var(--bg); color: var(--text); }
-button, input { font: inherit; }
+button, input, select { font: inherit; }
 button { min-height: 44px; cursor: pointer; }
 button:disabled { cursor: not-allowed; opacity: .45; }
-input {
+input, select {
   width: 100%;
   min-height: 44px;
   border: 1px solid var(--line);
@@ -213,10 +213,20 @@ small { color: var(--muted); }
 .empty-state { padding: 28px; text-align: center; }
 .empty-state p { color: var(--muted); }
 .progress-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.progress-controls { display: flex; justify-content: space-between; align-items: end; gap: 12px; }
+.progress-controls label { min-width: min(100%, 260px); }
+.range-selector { display: flex; flex-wrap: wrap; gap: 7px; }
+.range-selector button { border: 1px solid var(--line); border-radius: 12px; padding: 7px 13px; background: var(--surface); color: var(--muted); font-weight: 800; }
+.range-selector button.active { border-color: var(--dark); background: var(--dark); color: var(--bg); }
 .chart-card h2 { margin-top: 5px; font-size: 1.8rem; }
-.mini-line { width: 100%; height: 92px; margin-top: 12px; overflow: visible; }
-.mini-line path { fill: none; stroke: var(--accent); stroke-width: 3; vector-effect: non-scaling-stroke; stroke-linecap: round; stroke-linejoin: round; }
-.chart-empty { display: grid; place-items: center; height: 92px; color: var(--muted); font-size: .8rem; }
+.chart-heading { display: flex; justify-content: space-between; align-items: end; gap: 12px; }
+.line-chart { width: 100%; height: 190px; margin-top: 12px; overflow: visible; }
+.chart-line, .chart-grid-line { fill: none; vector-effect: non-scaling-stroke; }
+.chart-line { stroke: var(--accent); stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; }
+.chart-grid-line { stroke: var(--line); stroke-width: 1; }
+.line-chart circle { fill: var(--surface); stroke: var(--accent); stroke-width: 3; vector-effect: non-scaling-stroke; }
+.chart-dates { display: flex; justify-content: space-between; color: var(--muted); font-size: .7rem; }
+.chart-empty { display: grid; place-items: center; height: 190px; color: var(--muted); font-size: .8rem; }
 .performance-list { display: grid; gap: 8px; }
 .performance-list > div { display: flex; justify-content: space-between; gap: 12px; padding: 12px; border-radius: 12px; background: var(--surface-2); }
 .performance-list span { display: grid; gap: 3px; font-weight: 700; }
@@ -248,6 +258,8 @@ small { color: var(--muted); }
   .hero-card { align-items: flex-start; flex-direction: column; }
   .day-toggle { max-width: none; width: 100%; }
   .progress-grid { grid-template-columns: 1fr; }
+  .progress-controls { align-items: stretch; flex-direction: column; }
+  .progress-controls label { width: 100%; }
   .settings-row { grid-template-columns: 1fr 1fr; }
   .settings-row input:nth-child(-n+2) { grid-column: 1 / -1; }
   .settings-row .check { grid-column: 1 / -1; }

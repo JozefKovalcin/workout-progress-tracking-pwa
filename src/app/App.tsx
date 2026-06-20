@@ -15,6 +15,12 @@ import {
   summarizePerformance,
   workoutE1Rm
 } from "../domain/performance";
+import {
+  buildDailySeries,
+  buildStrengthSeries,
+  type ProgressPoint,
+  type ProgressRange
+} from "../domain/progress";
 import { evaluateRecommendation } from "../domain/recommendations";
 import type {
   DailyEntry,
@@ -503,26 +509,98 @@ function TrainingScreen({ snapshot, data, uid, today, onSwitchToday }: {
   );
 }
 
-function MiniLine({ values }: { values: Array<number | undefined> }) {
-  const points = values.map((value, index) => ({ value, index })).filter((item): item is { value: number; index: number } => Number.isFinite(item.value));
-  if (points.length < 2) return <div className="chart-empty">Aspoň 2 merania zobrazia trend.</div>;
-  const min = Math.min(...points.map((item) => item.value));
-  const max = Math.max(...points.map((item) => item.value));
-  const range = max - min || 1;
-  const d = points.map((item, index) => `${index ? "L" : "M"} ${item.index / Math.max(values.length - 1, 1) * 100} ${38 - ((item.value - min) / range) * 32}`).join(" ");
-  return <svg className="mini-line" viewBox="0 0 100 42" preserveAspectRatio="none" aria-hidden="true"><path d={d} /></svg>;
+function LineChart({ title, ariaLabel, points, unit }: {
+  title: string;
+  ariaLabel: string;
+  points: ProgressPoint[];
+  unit: string;
+}) {
+  const latest = points.at(-1);
+  if (points.length < 2) {
+    return (
+      <section className="panel chart-card">
+        <small>{title}</small>
+        <h2>{latest ? `${latest.value.toFixed(1)}${unit}` : "—"}</h2>
+        <div className="chart-empty">Aspoň 2 merania zobrazia trend.</div>
+      </section>
+    );
+  }
+
+  const width = 600;
+  const height = 220;
+  const paddingX = 34;
+  const paddingY = 24;
+  const min = Math.min(...points.map((point) => point.value));
+  const max = Math.max(...points.map((point) => point.value));
+  const valueRange = max - min || 1;
+  const coordinates = points.map((point, index) => ({
+    ...point,
+    x: paddingX + index / Math.max(points.length - 1, 1) * (width - paddingX * 2),
+    y: height - paddingY - (point.value - min) / valueRange * (height - paddingY * 2)
+  }));
+  const path = coordinates.map((point, index) =>
+    `${index ? "L" : "M"} ${point.x} ${point.y}`
+  ).join(" ");
+  const delta = latest!.value - points[0].value;
+
+  return (
+    <section className="panel chart-card">
+      <div className="chart-heading">
+        <div><small>{title}</small><h2>{latest!.value.toFixed(1)}{unit}</h2></div>
+        <strong className={delta >= 0 ? "positive" : "negative"}>{delta >= 0 ? "+" : ""}{delta.toFixed(1)}{unit}</strong>
+      </div>
+      <svg className="line-chart" viewBox={`0 0 ${width} ${height}`} role="img" aria-label={ariaLabel}>
+        <path className="chart-grid-line" d={`M ${paddingX} ${paddingY} H ${width - paddingX} M ${paddingX} ${height - paddingY} H ${width - paddingX}`} />
+        <path className="chart-line" d={path} />
+        {coordinates.map((point) => (
+          <circle key={`${point.date}-${point.value}`} cx={point.x} cy={point.y} r="5">
+            <title>{point.date}: {point.value.toFixed(1)}{unit}</title>
+          </circle>
+        ))}
+      </svg>
+      <div className="chart-dates"><span>{points[0].date}</span><span>{latest!.date}</span></div>
+    </section>
+  );
 }
 
 function ProgressScreen({ snapshot, today }: { snapshot: TrackerSnapshot; today: LocalDate }) {
-  const dates = recentDates(today, 7).reverse();
-  const rows = dates.map((date) => snapshot.dailyEntries.find((entry) => entry.date === date));
+  const [range, setRange] = useState<ProgressRange>(7);
+  const mainExercises = snapshot.exercises.filter((exercise) => exercise.isMain && !exercise.archivedAtMs);
+  const [exerciseId, setExerciseId] = useState(mainExercises[0]?.id ?? "");
+  const selectedExercise = mainExercises.find((exercise) => exercise.id === exerciseId) ?? mainExercises[0];
+  const weight = buildDailySeries(snapshot.dailyEntries, "weightKg", today, range);
+  const waist = buildDailySeries(snapshot.dailyEntries, "waistCm", today, range);
+  const calories = buildDailySeries(snapshot.dailyEntries, "calories", today, range);
+  const strength = selectedExercise
+    ? buildStrengthSeries(snapshot.topSets, selectedExercise.id, today, range)
+    : [];
   const performance = summarizePerformance(snapshot.topSets, today);
+  const rangeLabel = range === "all" ? "Všetky dáta" : `Posledných ${range} dní`;
   return (
     <div className="screen">
-      <header className="screen-header"><div><p className="eyebrow">Posledných 7 dní</p><h1>Progress</h1></div></header>
-      <div className="progress-grid">
-        <section className="panel chart-card"><small>Hmotnosť</small><h2>{fmt(average(rows.map((row) => row?.weightKg)), " kg")}</h2><MiniLine values={rows.map((row) => row?.weightKg)} /></section>
-        <section className="panel chart-card"><small>Pás</small><h2>{fmt(average(rows.map((row) => row?.waistCm)), " cm")}</h2><MiniLine values={rows.map((row) => row?.waistCm)} /></section>
+      <header className="screen-header"><div><p className="eyebrow">{rangeLabel}</p><h1>Progress</h1></div></header>
+      <section className="progress-controls">
+        <div className="range-selector" aria-label="Obdobie grafov">
+          {([
+            [7, "7 dní"],
+            [30, "30 dní"],
+            [90, "90 dní"],
+            ["all", "Všetko"]
+          ] as Array<[ProgressRange, string]>).map(([value, label]) => (
+            <button key={value} className={range === value ? "active" : ""} onClick={() => setRange(value)}>{label}</button>
+          ))}
+        </div>
+        <label>Cvik pre graf sily
+          <select aria-label="Cvik pre graf sily" value={selectedExercise?.id ?? ""} onChange={(event) => setExerciseId(event.target.value)}>
+            {mainExercises.map((exercise) => <option key={exercise.id} value={exercise.id}>{exercise.name}</option>)}
+          </select>
+        </label>
+      </section>
+      <div className="progress-grid chart-grid">
+        <LineChart title="Hmotnosť" ariaLabel="Graf hmotnosti" points={weight} unit=" kg" />
+        <LineChart title="Pás" ariaLabel="Graf pásu" points={waist} unit=" cm" />
+        <LineChart title="Kalórie" ariaLabel="Graf kalórií" points={calories} unit=" kcal" />
+        <LineChart title={`Sila · ${selectedExercise?.name ?? "vyber cvik"}`} ariaLabel={`Graf sily ${selectedExercise?.name ?? ""}`.trim()} points={strength} unit=" kg" />
       </div>
       <section className="panel">
         <div className="section-title"><div><small>Hlavné cviky</small><h2>Výkon {fmt(performance.overallPercent, " %")}</h2></div><span className="pill">{performance.comparableExercises} porovnaní</span></div>
@@ -530,7 +608,7 @@ function ProgressScreen({ snapshot, today }: { snapshot: TrackerSnapshot; today:
           {performance.items.length === 0 && <p>Na porovnanie potrebuješ dva top sety rovnakého cviku.</p>}
           {performance.items.map((item) => {
             const exercise = snapshot.exercises.find((row) => row.id === item.exerciseId);
-            return <div key={item.exerciseId}><span>{exercise?.name ?? item.exerciseId}<small>{item.current.weightKg} kg × {item.current.reps} · RIR {item.current.rir}</small></span><strong className={item.percentChange >= 0 ? "positive" : "negative"}>{item.percentChange >= 0 ? "+" : ""}{item.percentChange.toFixed(1)} %</strong></div>;
+            return <div key={item.exerciseId}><span>{exercise?.name ?? item.exerciseId}<small>Priemerné e1RM {workoutE1Rm(item.current).toFixed(1)} kg</small></span><strong className={item.percentChange >= 0 ? "positive" : "negative"}>{item.percentChange >= 0 ? "+" : ""}{item.percentChange.toFixed(1)} %</strong></div>;
           })}
         </div>
       </section>
