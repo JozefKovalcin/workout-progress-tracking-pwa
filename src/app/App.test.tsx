@@ -32,6 +32,9 @@ const cloudMock = vi.hoisted(() => ({
 vi.mock("../data/demoData", () => ({
   createDemoTrackerData: () => demoMock.source
 }));
+vi.mock("../data/firebaseAuth", () => ({
+  signInWithGoogle: () => cloudMock.signIn()
+}));
 vi.mock("../data/trackerData", () => ({
   get cloudTrackerData() {
     return cloudMock.source;
@@ -40,7 +43,6 @@ vi.mock("../data/trackerData", () => ({
     cloudMock.authCallback = callback;
     return vi.fn();
   },
-  signInWithGoogle: () => cloudMock.signIn(),
   signOutCurrentUser: vi.fn().mockResolvedValue(undefined)
 }));
 
@@ -487,11 +489,48 @@ describe("App demo mode", () => {
     expect(screen.getByRole("button", { name: "Uložiť 2 série" })).toBeEnabled();
   });
 
+  it("does not treat a blank RIR as zero", async () => {
+    const data = makeDataSource(makeSnapshot({
+      exercises: [{
+        id: "bench",
+        name: "Bench press",
+        muscleGroup: "Hrudník",
+        repMin: 6,
+        repMax: 10,
+        isMain: true
+      }],
+      trainingDays: [{
+        weekday: 5,
+        label: "Push",
+        enabled: true,
+        exerciseIds: ["bench"]
+      }]
+    }));
+    demoMock.source = data;
+    render(<App initialMode="demo" now={new Date(2026, 5, 19)} />);
+
+    fireEvent.click((await screen.findAllByRole("button", { name: "Tréning" }))[0]);
+    for (const [label, value] of [
+      ["Séria 1 kg", "100"],
+      ["Séria 1 opakovania", "6"],
+      ["Séria 2 kg", "90"],
+      ["Séria 2 opakovania", "10"],
+      ["Séria 2 RIR", "1"]
+    ]) {
+      fireEvent.change(await screen.findByLabelText(label), { target: { value } });
+    }
+    fireEvent.click(screen.getByRole("button", { name: "Uložiť 2 série" }));
+
+    expect(await screen.findByText(/Séria 1: RIR musí byť 0–10\./)).toBeVisible();
+    expect(data.saveTopSet).not.toHaveBeenCalled();
+  });
+
   it("shows selectable weight, waist, calorie and exercise-strength charts", async () => {
     demoMock.source = makeDataSource(makeSnapshot({
       dailyEntries: [
-        { date: "2026-06-14", weightKg: 80, waistCm: 82, calories: 2800, updatedAtMs: 1 },
-        { date: "2026-06-20", weightKg: 81, waistCm: 82.5, calories: 2900, updatedAtMs: 2 }
+        { date: "2026-06-14", weightKg: 79, waistCm: 81.5, calories: 2750, updatedAtMs: 1 },
+        { date: "2026-06-15", weightKg: 80, waistCm: 82, calories: 2800, updatedAtMs: 2 },
+        { date: "2026-06-20", weightKg: 81, waistCm: 82.5, calories: 2900, updatedAtMs: 3 }
       ],
       exercises: [{
         id: "bench",
@@ -530,6 +569,8 @@ describe("App demo mode", () => {
     const chartGrid = document.querySelector(".chart-grid");
     expect(chartGrid).toBeInTheDocument();
     expect(within(chartGrid as HTMLElement).getAllByRole("img")).toHaveLength(4);
+    const weightPoints = screen.getByRole("img", { name: "Graf hmotnosti" }).querySelectorAll("circle");
+    expect(Number(weightPoints[1].getAttribute("cx"))).toBeLessThan(200);
   });
 
   it("shows app validation instead of silently blocking a decimal score", async () => {
@@ -709,8 +750,9 @@ describe("App cloud mode", () => {
 
     render(<App now={new Date(2026, 5, 20)} />);
 
-    fireEvent.click(screen.getByRole("button", { name: "Pokračovať cez Google" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Pokračovať cez Google" }));
 
+    expect(cloudMock.signIn).toHaveBeenCalledOnce();
     expect(await screen.findByRole("button", { name: "Prihlasujem…" })).toBeDisabled();
 
     await act(async () => {

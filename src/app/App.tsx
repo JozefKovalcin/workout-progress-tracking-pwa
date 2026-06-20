@@ -1,4 +1,4 @@
-import { addDays, format, subDays } from "date-fns";
+import { addDays, differenceInCalendarDays, format, subDays } from "date-fns";
 import { sk } from "date-fns/locale";
 import {
   useEffect,
@@ -85,6 +85,8 @@ const numberOrUndefined = (value: FormDataEntryValue | null) => {
   if (value === null || String(value).trim() === "") return undefined;
   return Number(value);
 };
+const requiredNumber = (value: FormDataEntryValue | null) =>
+  numberOrUndefined(value) ?? Number.NaN;
 const average = (values: Array<number | undefined>) => {
   const valid = values.filter((value): value is number => Number.isFinite(value));
   return valid.length ? valid.reduce((sum, value) => sum + value, 0) / valid.length : null;
@@ -109,12 +111,13 @@ function recentDates(end: LocalDate, count: number) {
   return Array.from({ length: count }, (_, index) => toLocalDate(subDays(fromLocalDate(end), index)));
 }
 
-function AuthGate({ allowDemo, onDemo, onGoogle, error, authenticating }: {
+function AuthGate({ allowDemo, onDemo, onGoogle, error, authenticating, authReady }: {
   allowDemo: boolean;
   onDemo(): void;
   onGoogle(): void;
   error: string;
   authenticating: boolean;
+  authReady: boolean;
 }) {
   return (
     <main className="auth-page">
@@ -124,8 +127,8 @@ function AuthGate({ allowDemo, onDemo, onGoogle, error, authenticating }: {
         <h1>Lean Bulk Tracker</h1>
         <p>Zapisuj dáta, sleduj výkon a kalórie meň až po bezpečnom 14-dňovom vyhodnotení.</p>
         {error && <p className="error">{error}</p>}
-        <button className="primary" disabled={authenticating} onClick={onGoogle}>
-          {authenticating ? "Prihlasujem…" : "Pokračovať cez Google"}
+        <button className="primary" disabled={!authReady || authenticating} onClick={onGoogle}>
+          {authenticating ? "Prihlasujem…" : authReady ? "Pokračovať cez Google" : "Načítavam prihlásenie…"}
         </button>
         {allowDemo && <button className="secondary" onClick={onDemo}>Lokálny demo režim</button>}
       </section>
@@ -420,12 +423,12 @@ function TopSetForm({ exercise, date, sets, save }: {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
     const workingSets = [1, 2].map((index) => {
-      const weightKg = Number(form.get(`weightKg${index}`));
-      const reps = Number(form.get(`reps${index}`));
+      const weightKg = requiredNumber(form.get(`weightKg${index}`));
+      const reps = requiredNumber(form.get(`reps${index}`));
       return {
         weightKg,
         reps,
-        rir: Number(form.get(`rir${index}`)),
+        rir: requiredNumber(form.get(`rir${index}`)),
         estimated1RmKg: calculateE1Rm(weightKg, reps)
       };
     });
@@ -536,9 +539,14 @@ function LineChart({ title, ariaLabel, points, unit }: {
   const min = Math.min(...points.map((point) => point.value));
   const max = Math.max(...points.map((point) => point.value));
   const valueRange = max - min || 1;
-  const coordinates = points.map((point, index) => ({
+  const firstDate = fromLocalDate(points[0].date);
+  const dateRange = Math.max(
+    differenceInCalendarDays(fromLocalDate(latest!.date), firstDate),
+    1
+  );
+  const coordinates = points.map((point) => ({
     ...point,
-    x: paddingX + index / Math.max(points.length - 1, 1) * (width - paddingX * 2),
+    x: paddingX + differenceInCalendarDays(fromLocalDate(point.date), firstDate) / dateRange * (width - paddingX * 2),
     y: height - paddingY - (point.value - min) / valueRange * (height - paddingY * 2)
   }));
   const path = coordinates.map((point, index) =>
@@ -718,9 +726,23 @@ export function App({ initialMode, now = new Date() }: AppProps) {
   const [screen, setScreen] = useState<Screen>("today");
   const [authError, setAuthError] = useState("");
   const [authenticating, setAuthenticating] = useState(false);
+  const [cloudSignIn, setCloudSignIn] = useState<null | (() => Promise<unknown>)>(null);
   const today = toLocalDate(now);
   const allowDemo = import.meta.env.VITE_USE_FIREBASE_EMULATORS === "true" || initialMode === "demo";
   const snapshot = snapshotState.ownerUid === uid ? snapshotState.snapshot : EMPTY;
+
+  useEffect(() => {
+    if (mode) return;
+    let cancelled = false;
+    void import("../data/firebaseAuth").then((cloudAuth) => {
+      if (!cancelled) setCloudSignIn(() => cloudAuth.signInWithGoogle);
+    }).catch(() => {
+      if (!cancelled) setAuthError("Prihlásenie sa nepodarilo načítať. Obnov stránku a skús to znova.");
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [mode]);
 
   useEffect(() => {
     if (mode !== "cloud") return;
@@ -779,12 +801,12 @@ export function App({ initialMode, now = new Date() }: AppProps) {
     setData(createDemoTrackerData(localStorage));
   };
   const enterCloud = async () => {
-    if (authenticating) return;
+    if (authenticating || !cloudSignIn) return;
     setAuthenticating(true);
     setAuthError("");
     try {
+      await cloudSignIn();
       const cloud = await import("../data/trackerData");
-      await cloud.signInWithGoogle();
       localStorage.setItem(MODE_KEY, "cloud");
       setMode("cloud");
       setData(cloud.cloudTrackerData);
@@ -820,6 +842,7 @@ export function App({ initialMode, now = new Date() }: AppProps) {
         onGoogle={() => void enterCloud()}
         error={authError}
         authenticating={authenticating}
+        authReady={Boolean(cloudSignIn)}
       />
     );
   }
