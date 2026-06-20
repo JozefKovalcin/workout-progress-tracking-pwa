@@ -34,6 +34,7 @@ import type {
 } from "../domain/types";
 import { validateDailyEntry, validateTopSet } from "../domain/validation";
 import { createDemoTrackerData } from "../data/demoData";
+import { signInWithGoogle } from "../data/firebaseAuth";
 import { syncStore } from "../data/syncStore";
 import type {
   StoredRecommendation,
@@ -111,13 +112,12 @@ function recentDates(end: LocalDate, count: number) {
   return Array.from({ length: count }, (_, index) => toLocalDate(subDays(fromLocalDate(end), index)));
 }
 
-function AuthGate({ allowDemo, onDemo, onGoogle, error, authenticating, authReady }: {
+function AuthGate({ allowDemo, onDemo, onGoogle, error, authenticating }: {
   allowDemo: boolean;
   onDemo(): void;
   onGoogle(): void;
   error: string;
   authenticating: boolean;
-  authReady: boolean;
 }) {
   return (
     <main className="auth-page">
@@ -127,8 +127,8 @@ function AuthGate({ allowDemo, onDemo, onGoogle, error, authenticating, authRead
         <h1>Lean Bulk Tracker</h1>
         <p>Zapisuj dáta, sleduj výkon a kalórie meň až po bezpečnom 14-dňovom vyhodnotení.</p>
         {error && <p className="error">{error}</p>}
-        <button className="primary" disabled={!authReady || authenticating} onClick={onGoogle}>
-          {authenticating ? "Prihlasujem…" : authReady ? "Pokračovať cez Google" : "Načítavam prihlásenie…"}
+        <button className="primary" disabled={authenticating} onClick={onGoogle}>
+          {authenticating ? "Prihlasujem…" : "Pokračovať cez Google"}
         </button>
         {allowDemo && <button className="secondary" onClick={onDemo}>Lokálny demo režim</button>}
       </section>
@@ -726,23 +726,9 @@ export function App({ initialMode, now = new Date() }: AppProps) {
   const [screen, setScreen] = useState<Screen>("today");
   const [authError, setAuthError] = useState("");
   const [authenticating, setAuthenticating] = useState(false);
-  const [cloudSignIn, setCloudSignIn] = useState<null | (() => Promise<unknown>)>(null);
   const today = toLocalDate(now);
   const allowDemo = import.meta.env.VITE_USE_FIREBASE_EMULATORS === "true" || initialMode === "demo";
   const snapshot = snapshotState.ownerUid === uid ? snapshotState.snapshot : EMPTY;
-
-  useEffect(() => {
-    if (mode) return;
-    let cancelled = false;
-    void import("../data/firebaseAuth").then((cloudAuth) => {
-      if (!cancelled) setCloudSignIn(() => cloudAuth.signInWithGoogle);
-    }).catch(() => {
-      if (!cancelled) setAuthError("Prihlásenie sa nepodarilo načítať. Obnov stránku a skús to znova.");
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [mode]);
 
   useEffect(() => {
     if (mode !== "cloud") return;
@@ -801,11 +787,11 @@ export function App({ initialMode, now = new Date() }: AppProps) {
     setData(createDemoTrackerData(localStorage));
   };
   const enterCloud = async () => {
-    if (authenticating || !cloudSignIn) return;
+    if (authenticating) return;
     setAuthenticating(true);
     setAuthError("");
     try {
-      await cloudSignIn();
+      await signInWithGoogle();
       const cloud = await import("../data/trackerData");
       localStorage.setItem(MODE_KEY, "cloud");
       setMode("cloud");
@@ -842,7 +828,6 @@ export function App({ initialMode, now = new Date() }: AppProps) {
         onGoogle={() => void enterCloud()}
         error={authError}
         authenticating={authenticating}
-        authReady={Boolean(cloudSignIn)}
       />
     );
   }

@@ -742,6 +742,17 @@ describe("App cloud mode", () => {
     cloudMock.signIn.mockResolvedValue(undefined);
   });
 
+  it("offers Google sign-in immediately without waiting for an auth preload", () => {
+    render(<App now={new Date(2026, 5, 20)} />);
+
+    expect(
+      screen.getByRole("button", { name: "Pokračovať cez Google" })
+    ).toBeEnabled();
+    expect(
+      screen.queryByRole("button", { name: "Načítavam prihlásenie…" })
+    ).not.toBeInTheDocument();
+  });
+
   it("locks the Google button while popup authentication is running", async () => {
     let resolveSignIn = () => {};
     cloudMock.signIn.mockImplementation(() => new Promise<void>((resolve) => {
