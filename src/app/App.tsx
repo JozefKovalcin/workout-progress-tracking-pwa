@@ -109,11 +109,12 @@ function recentDates(end: LocalDate, count: number) {
   return Array.from({ length: count }, (_, index) => toLocalDate(subDays(fromLocalDate(end), index)));
 }
 
-function AuthGate({ allowDemo, onDemo, onGoogle, error }: {
+function AuthGate({ allowDemo, onDemo, onGoogle, error, authenticating }: {
   allowDemo: boolean;
   onDemo(): void;
   onGoogle(): void;
   error: string;
+  authenticating: boolean;
 }) {
   return (
     <main className="auth-page">
@@ -123,7 +124,9 @@ function AuthGate({ allowDemo, onDemo, onGoogle, error }: {
         <h1>Lean Bulk Tracker</h1>
         <p>Zapisuj dáta, sleduj výkon a kalórie meň až po bezpečnom 14-dňovom vyhodnotení.</p>
         {error && <p className="error">{error}</p>}
-        <button className="primary" onClick={onGoogle}>Pokračovať cez Google</button>
+        <button className="primary" disabled={authenticating} onClick={onGoogle}>
+          {authenticating ? "Prihlasujem…" : "Pokračovať cez Google"}
+        </button>
         {allowDemo && <button className="secondary" onClick={onDemo}>Lokálny demo režim</button>}
       </section>
     </main>
@@ -714,6 +717,7 @@ export function App({ initialMode, now = new Date() }: AppProps) {
   }>({ ownerUid: null, snapshot: EMPTY });
   const [screen, setScreen] = useState<Screen>("today");
   const [authError, setAuthError] = useState("");
+  const [authenticating, setAuthenticating] = useState(false);
   const today = toLocalDate(now);
   const allowDemo = import.meta.env.VITE_USE_FIREBASE_EMULATORS === "true" || initialMode === "demo";
   const snapshot = snapshotState.ownerUid === uid ? snapshotState.snapshot : EMPTY;
@@ -775,14 +779,19 @@ export function App({ initialMode, now = new Date() }: AppProps) {
     setData(createDemoTrackerData(localStorage));
   };
   const enterCloud = async () => {
+    if (authenticating) return;
+    setAuthenticating(true);
+    setAuthError("");
     try {
       const cloud = await import("../data/trackerData");
+      await cloud.signInWithGoogle();
       localStorage.setItem(MODE_KEY, "cloud");
       setMode("cloud");
       setData(cloud.cloudTrackerData);
-      await cloud.signInWithGoogle();
     } catch (error) {
       setAuthError(error instanceof Error ? error.message : "Prihlásenie zlyhalo.");
+    } finally {
+      setAuthenticating(false);
     }
   };
   const signOut = async () => {
@@ -803,7 +812,17 @@ export function App({ initialMode, now = new Date() }: AppProps) {
     setScreen("training");
   };
 
-  if (!mode || !uid || !data) return <AuthGate allowDemo={allowDemo} onDemo={enterDemo} onGoogle={() => void enterCloud()} error={authError} />;
+  if (!mode || !uid || !data) {
+    return (
+      <AuthGate
+        allowDemo={allowDemo}
+        onDemo={enterDemo}
+        onGoogle={() => void enterCloud()}
+        error={authError}
+        authenticating={authenticating}
+      />
+    );
+  }
   if (!snapshot.profile) return <main className="loading"><div className="brand-mark">LB</div><p>Pripravujem tracker…</p></main>;
 
   const content = {

@@ -25,19 +25,22 @@ const demoMock = vi.hoisted(() => ({
 }));
 const cloudMock = vi.hoisted(() => ({
   source: null as TrackerDataSource | null,
-  authCallback: null as ((user: { uid: string } | null) => void) | null
+  authCallback: null as ((user: { uid: string } | null) => void) | null,
+  signIn: vi.fn().mockResolvedValue(undefined)
 }));
 
 vi.mock("../data/demoData", () => ({
   createDemoTrackerData: () => demoMock.source
 }));
 vi.mock("../data/trackerData", () => ({
-  cloudTrackerData: cloudMock.source,
+  get cloudTrackerData() {
+    return cloudMock.source;
+  },
   subscribeUser: (callback: (user: { uid: string } | null) => void) => {
     cloudMock.authCallback = callback;
     return vi.fn();
   },
-  signInWithGoogle: vi.fn().mockResolvedValue(undefined),
+  signInWithGoogle: () => cloudMock.signIn(),
   signOutCurrentUser: vi.fn().mockResolvedValue(undefined)
 }));
 
@@ -690,6 +693,26 @@ describe("App cloud mode", () => {
     localStorage.clear();
     cloudMock.source = null;
     cloudMock.authCallback = null;
+    cloudMock.signIn.mockReset();
+    cloudMock.signIn.mockResolvedValue(undefined);
+  });
+
+  it("locks the Google button while popup authentication is running", async () => {
+    let resolveSignIn = () => {};
+    cloudMock.signIn.mockImplementation(() => new Promise<void>((resolve) => {
+      resolveSignIn = resolve;
+    }));
+
+    render(<App now={new Date(2026, 5, 20)} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Pokračovať cez Google" }));
+
+    expect(await screen.findByRole("button", { name: "Prihlasujem…" })).toBeDisabled();
+
+    await act(async () => {
+      resolveSignIn();
+      await Promise.resolve();
+    });
   });
 
   it("hides the previous user's snapshot while the next user is loading", async () => {

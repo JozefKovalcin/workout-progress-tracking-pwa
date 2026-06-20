@@ -3,7 +3,6 @@ import {
   onAuthStateChanged,
   signInWithEmailAndPassword,
   signInWithPopup,
-  signInWithRedirect,
   signOut,
   type User
 } from "firebase/auth";
@@ -12,11 +11,30 @@ import { auth } from "./firebase";
 export const subscribeUser = (cb: (user: User | null) => void) =>
   onAuthStateChanged(auth, cb);
 
-export const signInWithGoogle = () => {
+export const authErrorMessage = (error: unknown) => {
+  const code = typeof error === "object" && error !== null && "code" in error
+    ? (error as { code?: unknown }).code
+    : undefined;
+
+  if (code === "auth/popup-blocked") {
+    return "Prehliadač zablokoval prihlasovacie okno. Povoľ vyskakovacie okná a skús to znova.";
+  }
+  if (code === "auth/popup-closed-by-user") {
+    return "Prihlásenie bolo zrušené. Skús to znova.";
+  }
+  if (code === "auth/cancelled-popup-request") {
+    return "Prihlásenie už prebieha.";
+  }
+  return "Prihlásenie zlyhalo. Skontroluj pripojenie a skús to znova.";
+};
+
+export const signInWithGoogle = async () => {
   const provider = new GoogleAuthProvider();
-  return window.matchMedia("(max-width: 799px)").matches
-    ? signInWithRedirect(auth, provider)
-    : signInWithPopup(auth, provider);
+  try {
+    await signInWithPopup(auth, provider);
+  } catch (error) {
+    throw new Error(authErrorMessage(error));
+  }
 };
 
 export const signInForE2E = () => {
