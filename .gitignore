@@ -1,8 +1,10 @@
 .worktrees/
 node_modules/
 dist/
+.env
 .env.local
 .env.production.local
+.pnpm-store/
 .firebaserc
 playwright-report/
 test-results/
