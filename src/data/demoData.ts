@@ -8,6 +8,7 @@ import type {
   TrainingDayPlan
 } from "../domain/types";
 import { syncStore } from "./syncStore";
+import { normalizeImportedSnapshot } from "./importData";
 import type {
   StoredRecommendation,
   TrackerDataSource,
@@ -106,6 +107,9 @@ export function createDemoTrackerData(storage: Storage): TrackerDataSource {
     },
     async exportAll() {
       return structuredClone(read()) as unknown as Record<string, unknown>;
+    },
+    async importAll(_uid, value: unknown) {
+      write(normalizeImportedSnapshot(value));
     },
     reset() {
       storage.removeItem(DEMO_STORAGE_KEY);

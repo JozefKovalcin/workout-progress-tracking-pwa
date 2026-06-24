@@ -67,6 +67,7 @@ export interface TrackerDataSource {
     nextTargets?: TargetPeriod
   ): Promise<void>;
   exportAll(uid: string): Promise<Record<string, unknown>>;
+  importAll?(uid: string, value: unknown): Promise<void>;
   reset?(): void;
 }
 

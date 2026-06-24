@@ -392,6 +392,37 @@ describe("App demo mode", () => {
     );
   });
 
+  it("shows block completeness and copies previous day calories", async () => {
+    const data = makeDataSource(makeSnapshot({
+      dailyEntries: [
+        {
+          date: "2026-06-19",
+          dayTypeOverride: "training",
+          weightKg: 81.4,
+          calories: 2750,
+          trainingQualityScore: 8,
+          updatedAtMs: 1
+        }
+      ],
+      trainingDays: [{
+        weekday: 5,
+        label: "Pump",
+        enabled: true,
+        exerciseIds: []
+      }]
+    }));
+    demoMock.source = data;
+    render(<App initialMode="demo" now={new Date(2026, 5, 20)} />);
+
+    expect(await screen.findByText("Blok dát")).toBeVisible();
+    expect(screen.getByText("Pás")).toBeVisible();
+    expect(screen.getByText(/2026-06-19/)).toBeVisible();
+
+    fireEvent.click(screen.getByRole("button", { name: "Kopírovať včerajšie kalórie" }));
+
+    expect(screen.getByLabelText("Kalórie")).toHaveValue(2750);
+  });
+
   it("saves two working sets and shows their average e1RM", async () => {
     const data = makeDataSource(makeSnapshot({
       exercises: [{
@@ -449,6 +480,46 @@ describe("App demo mode", () => {
     );
     expect(await screen.findByText(/Priemerné e1RM 120\.0 kg/)).toBeVisible();
     expect(screen.getByText("Tréning uložený.")).toBeVisible();
+  });
+
+  it("repeats the previous top set and shows live training feedback", async () => {
+    const data = makeDataSource(makeSnapshot({
+      exercises: [{
+        id: "bench",
+        name: "Bench press",
+        muscleGroup: "Hrudník",
+        repMin: 6,
+        repMax: 10,
+        isMain: true
+      }],
+      trainingDays: [{
+        weekday: 5,
+        label: "Push",
+        enabled: true,
+        exerciseIds: ["bench"]
+      }],
+      topSets: [
+        makeTopSet({
+          id: "previous",
+          date: "2026-06-12",
+          exerciseId: "bench",
+          sets: [
+            { weightKg: 100, reps: 6, rir: 2, estimated1RmKg: 120 },
+            { weightKg: 90, reps: 10, rir: 1, estimated1RmKg: 120 }
+          ]
+        })
+      ]
+    }));
+    demoMock.source = data;
+    render(<App initialMode="demo" now={new Date(2026, 5, 19)} />);
+
+    fireEvent.click((await screen.findAllByRole("button", { name: "Tréning" }))[0]);
+    fireEvent.click(await screen.findByRole("button", { name: "Opakovať minule" }));
+
+    expect(screen.getByLabelText("Séria 1 kg")).toHaveValue(100);
+    expect(screen.getByLabelText("Séria 2 opakovania")).toHaveValue(10);
+    expect(screen.getByText(/Live e1RM 120\.0 kg/)).toBeVisible();
+    expect(screen.getByText("Stabilné")).toBeVisible();
   });
 
   it("shows a training save error and unlocks the two-set button", async () => {
@@ -573,6 +644,44 @@ describe("App demo mode", () => {
     expect(Number(weightPoints[1].getAttribute("cx"))).toBeLessThan(200);
   });
 
+  it("shows progress KPIs and selected chart point details", async () => {
+    demoMock.source = makeDataSource(makeSnapshot({
+      dailyEntries: [
+        { date: "2026-06-14", weightKg: 79, waistCm: 81.5, calories: 2750, updatedAtMs: 1 },
+        { date: "2026-06-15", weightKg: 80, waistCm: 82, calories: 2800, updatedAtMs: 2 },
+        { date: "2026-06-20", weightKg: 81, waistCm: 82.5, calories: 2900, updatedAtMs: 3 }
+      ],
+      exercises: [{
+        id: "bench",
+        name: "Bench press",
+        muscleGroup: "Hrudník",
+        repMin: 6,
+        repMax: 10,
+        isMain: true
+      }],
+      topSets: [
+        makeTopSet({ id: "old", date: "2026-06-14", exerciseId: "bench", estimated1RmKg: 100 }),
+        makeTopSet({
+          id: "new",
+          date: "2026-06-20",
+          exerciseId: "bench",
+          sets: [
+            { weightKg: 100, reps: 6, rir: 2, estimated1RmKg: 120 },
+            { weightKg: 90, reps: 10, rir: 1, estimated1RmKg: 120 }
+          ]
+        })
+      ]
+    }));
+    render(<App initialMode="demo" now={new Date(2026, 5, 20)} />);
+
+    fireEvent.click((await screen.findAllByRole("button", { name: "Progress" }))[0]);
+
+    expect(await screen.findByText("Trend hmotnosti")).toBeVisible();
+    expect(screen.getAllByText("7-dňový priemer").length).toBeGreaterThan(0);
+    fireEvent.click(screen.getAllByRole("button", { name: /Hmotnosť bod/ })[0]);
+    expect(screen.getAllByText(/Vybraný bod/).length).toBeGreaterThan(0);
+  });
+
   it("shows app validation instead of silently blocking a decimal score", async () => {
     render(<App initialMode="demo" now={new Date(2026, 5, 19)} />);
 
@@ -603,6 +712,51 @@ describe("App demo mode", () => {
       await screen.findByText("Uloženie zlyhalo: Missing or insufficient permissions.")
     ).toBeVisible();
     expect(screen.getByRole("button", { name: "Uložiť deň" })).toBeEnabled();
+  });
+
+  it("confirms destructive settings actions and imports demo JSON", async () => {
+    const data = makeDataSource(makeSnapshot({
+      exercises: [{
+        id: "bench",
+        name: "Bench press",
+        muscleGroup: "Hrudník",
+        repMin: 6,
+        repMax: 10,
+        isMain: true
+      }]
+    }));
+    data.reset = vi.fn();
+    data.importAll = vi.fn().mockResolvedValue(undefined);
+    demoMock.source = data;
+    const confirm = vi.spyOn(window, "confirm").mockReturnValue(false);
+    render(<App initialMode="demo" now={new Date(2026, 5, 19)} />);
+
+    fireEvent.click((await screen.findAllByRole("button", { name: "Nastavenia" }))[0]);
+    fireEvent.click(await screen.findByRole("button", { name: "Archivovať" }));
+    expect(data.saveExercise).not.toHaveBeenCalledWith(
+      "demo",
+      expect.objectContaining({ archivedAtMs: expect.any(Number) })
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Resetovať demo dáta" }));
+    expect(data.reset).not.toHaveBeenCalled();
+
+    const file = new File([JSON.stringify({
+      profile,
+      dailyEntries: [],
+      exercises: [],
+      trainingDays: [],
+      topSets: [],
+      targets: [initialTarget],
+      recommendations: []
+    })], "lean-bulk-export.json", { type: "application/json" });
+    fireEvent.change(screen.getByLabelText("Importovať JSON"), {
+      target: { files: [file] }
+    });
+
+    await waitFor(() => expect(data.importAll).toHaveBeenCalledOnce());
+    expect(await screen.findByText("Import hotový.")).toBeVisible();
+    confirm.mockRestore();
   });
 
   it("does not offer Accept on day 14", async () => {

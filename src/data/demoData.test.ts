@@ -90,6 +90,52 @@ describe("demo tracker data", () => {
     ]);
   });
 
+  it("imports a validated tracker export into demo storage", async () => {
+    const data = createDemoTrackerData(localStorage);
+    await data.seedIfNeeded("demo");
+
+    await expect(data.importAll?.("demo", {
+      profile: {
+        startDate: "2026-06-19",
+        startingWeightKg: 81.4,
+        trainingCalories: 2900,
+        restCalories: 2700,
+        proteinGrams: 180,
+        fatGrams: 50,
+        evaluationDays: 14,
+        targetGainMinPct: 0.2,
+        targetGainMaxPct: 0.35
+      },
+      dailyEntries: [{
+        date: "2026-06-20",
+        weightKg: 82,
+        calories: 2800,
+        updatedAtMs: 2
+      }],
+      exercises: [],
+      trainingDays: [],
+      topSets: [],
+      targets: [],
+      recommendations: []
+    })).resolves.toBeUndefined();
+
+    await expect(data.importAll?.("demo", {
+      profile: null,
+      dailyEntries: [{ date: "2026-06-20", weightKg: 3, updatedAtMs: 2 }],
+      exercises: [],
+      trainingDays: [],
+      topSets: [],
+      targets: [],
+      recommendations: []
+    })).rejects.toThrow("Denný záznam 2026-06-20 nie je platný.");
+
+    expect(await data.exportAll("demo")).toEqual(
+      expect.objectContaining({
+        dailyEntries: [expect.objectContaining({ date: "2026-06-20", weightKg: 82 })]
+      })
+    );
+  });
+
   it("rejects overlapping decisions and allows a later separate decision", async () => {
     const data = createDemoTrackerData(localStorage);
     await data.seedIfNeeded("demo");
