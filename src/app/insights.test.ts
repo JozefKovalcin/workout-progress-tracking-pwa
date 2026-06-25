@@ -6,6 +6,7 @@ import {
   buildBlockCompleteness,
   buildMovingAverageSeries,
   describeTrainingFeedback,
+  previousBestTopSets,
   summarizeTrend
 } from "./insights";
 
@@ -115,13 +116,13 @@ describe("app insights", () => {
     expect(series.at(-1)).toEqual({ date: "2026-06-26", value: 84 });
   });
 
-  it("labels positive, neutral, and negative training feedback", () => {
+  it("labels PR, neutral, and negative training feedback", () => {
     const previous = topSet("2026-06-19", 100, 8);
     const baseline = workoutE1Rm(previous);
 
     expect(describeTrainingFeedback(baseline * 1.02, previous)).toMatchObject({
       tone: "positive",
-      label: "Výkon hore"
+      label: "Nový PR"
     });
     expect(describeTrainingFeedback(baseline * 1.002, previous)).toMatchObject({
       tone: "neutral",
@@ -130,6 +131,42 @@ describe("app insights", () => {
     expect(describeTrainingFeedback(baseline * 0.98, previous)).toMatchObject({
       tone: "negative",
       label: "Výkon dole"
+    });
+  });
+
+  it("selects the previous two best top sets before the current date", () => {
+    const best = topSet("2026-06-12", 110, 8);
+    const secondBest = topSet("2026-06-05", 105, 8);
+    const latestButLower = topSet("2026-06-18", 90, 8);
+    const future = topSet("2026-06-26", 140, 8);
+
+    const result = previousBestTopSets(
+      [latestButLower, future, secondBest, best],
+      "bench",
+      "2026-06-19"
+    );
+
+    expect(result).toEqual([
+      expect.objectContaining({
+        label: "Najlepší záznam",
+        set: expect.objectContaining({ date: "2026-06-12" })
+      }),
+      expect.objectContaining({
+        label: "Druhý najlepší záznam",
+        set: expect.objectContaining({ date: "2026-06-05" })
+      })
+    ]);
+  });
+
+  it("describes a live new PR against the previous best top set", () => {
+    const best = topSet("2026-06-12", 100, 8);
+    const bestAverage = workoutE1Rm(best);
+
+    expect(describeTrainingFeedback(bestAverage + 2, best)).toMatchObject({
+      tone: "positive",
+      label: "Nový PR",
+      isPr: true,
+      deltaKg: 2
     });
   });
 

@@ -6,7 +6,8 @@ import {
 import type { Exercise, LocalDate, TopSet } from "../../domain/types";
 import { validateTopSet } from "../../domain/validation";
 import { requiredNumber } from "../helpers";
-import { describeTrainingFeedback } from "../insights";
+import { describeTrainingFeedback, previousBestTopSets, type FeedbackTone } from "../insights";
+import { NumberStepper } from "./NumberStepper";
 
 interface TopSetFormProps {
   exercise: Exercise;
@@ -55,12 +56,21 @@ function liveAverage(inputs: SetInputs) {
     : null;
 }
 
+function feedbackStatusClass(tone: FeedbackTone) {
+  if (tone === "positive") return "status-good";
+  if (tone === "negative") return "status-danger";
+  return "trend-neutral";
+}
+
 export function TopSetForm({ exercise, date, sets, save }: TopSetFormProps) {
   const current = sets.find((item) => item.date === date && item.exerciseId === exercise.id);
-  const previous = [...sets].filter((item) => item.exerciseId === exercise.id && item.date < date).sort((a, b) => b.date.localeCompare(a.date))[0];
+  const latestPrevious = [...sets].filter((item) => item.exerciseId === exercise.id && item.date < date).sort((a, b) => b.date.localeCompare(a.date))[0];
+  const previousBests = previousBestTopSets(sets, exercise.id, date);
+  const bestPrevious = previousBests[0]?.set;
   const [errors, setErrors] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
   const [saveMessage, setSaveMessage] = useState("");
+  const [saveTone, setSaveTone] = useState<FeedbackTone | null>(null);
   const [savedAverage, setSavedAverage] = useState<number | null>(null);
   const [setInputs, setSetInputs] = useState<SetInputs>(() => buildInputs(current));
   const [note, setNote] = useState(current?.note ?? "");
@@ -74,10 +84,11 @@ export function TopSetForm({ exercise, date, sets, save }: TopSetFormProps) {
   };
 
   const repeatPrevious = () => {
-    setSetInputs(buildInputs(previous));
-    setNote(previous?.note ?? "");
+    setSetInputs(buildInputs(latestPrevious));
+    setNote(latestPrevious?.note ?? "");
     setErrors([]);
     setSaveMessage("");
+    setSaveTone(null);
   };
 
   const submit = async (event: FormEvent<HTMLFormElement>) => {
@@ -108,13 +119,25 @@ export function TopSetForm({ exercise, date, sets, save }: TopSetFormProps) {
     const nextErrors = validateTopSet(value);
     setErrors(nextErrors);
     setSaveMessage("");
+    setSaveTone(null);
     if (nextErrors.length) return;
 
     setSaving(true);
     try {
       await save(value);
-      setSavedAverage(workoutE1Rm(value));
-      setSaveMessage("Tréning uložený.");
+      const averageE1Rm = workoutE1Rm(value);
+      const feedback = describeTrainingFeedback(averageE1Rm, bestPrevious);
+      setSavedAverage(averageE1Rm);
+      setSaveTone(feedback.tone);
+      setSaveMessage(
+        feedback.isPr
+          ? "Nový PR uložený."
+          : feedback.tone === "positive"
+            ? "Tréning uložený. Výkon hore."
+            : feedback.tone === "negative"
+              ? "Tréning uložený. Výkon dole."
+              : "Tréning uložený."
+      );
     } catch (error) {
       const detail = error instanceof Error ? error.message : "Neznáma chyba.";
       setSaveMessage(`Uloženie tréningu zlyhalo: ${detail}`);
@@ -122,17 +145,28 @@ export function TopSetForm({ exercise, date, sets, save }: TopSetFormProps) {
       setSaving(false);
     }
   };
-  const change = current && previous ? (workoutE1Rm(current) - workoutE1Rm(previous)) / workoutE1Rm(previous) * 100 : null;
+  const change = current && bestPrevious ? (workoutE1Rm(current) - workoutE1Rm(bestPrevious)) / workoutE1Rm(bestPrevious) * 100 : null;
   const displayedAverage = savedAverage ?? (current ? workoutE1Rm(current) : null);
   const live = liveAverage(setInputs);
-  const liveFeedback = describeTrainingFeedback(live, previous);
+  const liveFeedback = describeTrainingFeedback(live, bestPrevious);
   return (
     <form className="exercise-card" onSubmit={submit} noValidate key={`${exercise.id}-${current?.updatedAtMs ?? 0}`}>
       <div className="exercise-heading"><div><small>{exercise.muscleGroup}</small><h3>{exercise.name}</h3></div><span>{exercise.repMin}–{exercise.repMax} op.</span></div>
-      {previous && (
+      {latestPrevious && (
         <div className="previous-row">
-          <p className="previous">Predtým · priemerné e1RM {workoutE1Rm(previous).toFixed(1)} kg</p>
+          <p className="previous">Predtým · priemerné e1RM {workoutE1Rm(latestPrevious).toFixed(1)} kg</p>
           <button type="button" className="text-button" onClick={repeatPrevious}>Opakovať minule</button>
+        </div>
+      )}
+      {previousBests.length > 0 && (
+        <div className="previous-bests" aria-label="Predchádzajúce najlepšie záznamy">
+          {previousBests.map((item) => (
+            <div key={item.label}>
+              <span className="pill trend-neutral">{item.label}</span>
+              <strong>{item.set.date}</strong>
+              <small>{item.set.weightKg} kg · {item.set.reps} op. · RIR {item.set.rir} · e1RM {item.e1RmKg.toFixed(1)} kg</small>
+            </div>
+          ))}
         </div>
       )}
       <div className="working-sets">
@@ -140,9 +174,9 @@ export function TopSetForm({ exercise, date, sets, save }: TopSetFormProps) {
           <fieldset className="working-set" key={setIndex}>
             <legend>Séria {setIndex + 1}</legend>
             <div className="topset-grid">
-              <label>Séria {setIndex + 1} kg<input name={`weightKg${setIndex + 1}`} type="number" step="0.1" value={setInputs[setIndex].weightKg} onChange={(event) => updateSet(setIndex, "weightKg", event.target.value)} /></label>
-              <label>Séria {setIndex + 1} opakovania<input name={`reps${setIndex + 1}`} type="number" min="1" value={setInputs[setIndex].reps} onChange={(event) => updateSet(setIndex, "reps", event.target.value)} /></label>
-              <label>Séria {setIndex + 1} RIR<input name={`rir${setIndex + 1}`} type="number" step="0.5" min="0" max="10" value={setInputs[setIndex].rir} onChange={(event) => updateSet(setIndex, "rir", event.target.value)} /></label>
+              <NumberStepper label={`Séria ${setIndex + 1} kg`} name={`weightKg${setIndex + 1}`} step={2.5} min={0} precision={1} suffix="kg" value={setInputs[setIndex].weightKg} onRawChange={(value) => updateSet(setIndex, "weightKg", value)} />
+              <NumberStepper label={`Séria ${setIndex + 1} opakovania`} name={`reps${setIndex + 1}`} step={1} min={1} precision={0} value={setInputs[setIndex].reps} onRawChange={(value) => updateSet(setIndex, "reps", value)} />
+              <NumberStepper label={`Séria ${setIndex + 1} RIR`} name={`rir${setIndex + 1}`} step={0.5} min={0} max={10} precision={1} value={setInputs[setIndex].rir} onRawChange={(value) => updateSet(setIndex, "rir", value)} />
             </div>
           </fieldset>
         ))}
@@ -155,7 +189,7 @@ export function TopSetForm({ exercise, date, sets, save }: TopSetFormProps) {
       )}
       {displayedAverage !== null && <p className="set-result">Priemerné e1RM {displayedAverage.toFixed(1)} kg {change !== null && `· ${change >= 0 ? "+" : ""}${change.toFixed(1)} %`}</p>}
       {errors.length > 0 && <div className="error" role="alert">{errors.join(" ")}</div>}
-      {saveMessage && <div aria-live="polite" role="status" className={saveMessage.startsWith("Uloženie") ? "error" : "save-success"}>{saveMessage}</div>}
+      {saveMessage && <div aria-live="polite" role="status" className={saveMessage.startsWith("Uloženie") ? "error" : `save-success ${saveTone ? feedbackStatusClass(saveTone) : ""}`}>{saveMessage}</div>}
       <button className="secondary" type="submit" disabled={saving}>{saving ? "Ukladám…" : "Uložiť 2 série"}</button>
     </form>
   );

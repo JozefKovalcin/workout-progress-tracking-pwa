@@ -28,6 +28,14 @@ export interface TrainingFeedback {
   label: string;
   detail: string;
   percentChange: number | null;
+  deltaKg: number | null;
+  isPr: boolean;
+}
+
+export interface PreviousBestTopSet {
+  label: "Najlepší záznam" | "Druhý najlepší záznam";
+  set: TopSet;
+  e1RmKg: number;
 }
 
 function finite(value: number | undefined): value is number {
@@ -127,6 +135,34 @@ export function summarizeTrend(points: ProgressPoint[], unit: string) {
   return `${change >= 0 ? "+" : ""}${change.toFixed(1)} ${unit}`;
 }
 
+export function previousBestTopSets(
+  sets: TopSet[],
+  exerciseId: string,
+  beforeDate: LocalDate
+): PreviousBestTopSet[] {
+  const labels: Array<PreviousBestTopSet["label"]> = [
+    "Najlepší záznam",
+    "Druhý najlepší záznam"
+  ];
+
+  return [...sets]
+    .filter((set) => set.exerciseId === exerciseId && set.date < beforeDate)
+    .sort((left, right) => {
+      const e1RmDiff = workoutE1Rm(right) - workoutE1Rm(left);
+      if (e1RmDiff !== 0) return e1RmDiff;
+      const dateDiff = right.date.localeCompare(left.date);
+      if (dateDiff !== 0) return dateDiff;
+      const updatedDiff = right.updatedAtMs - left.updatedAtMs;
+      return updatedDiff !== 0 ? updatedDiff : right.id.localeCompare(left.id);
+    })
+    .slice(0, 2)
+    .map((set, index) => ({
+      label: labels[index],
+      set,
+      e1RmKg: workoutE1Rm(set)
+    }));
+}
+
 export function describeTrainingFeedback(
   averageE1Rm: number | null,
   previous: TopSet | undefined
@@ -136,34 +172,43 @@ export function describeTrainingFeedback(
       tone: "neutral",
       label: "Zbieraj dáta",
       detail: "Porovnanie sa zobrazí po ďalšom top sete.",
-      percentChange: null
+      percentChange: null,
+      deltaKg: null,
+      isPr: false
     };
   }
 
   const previousAverage = workoutE1Rm(previous);
+  const deltaKg = averageE1Rm - previousAverage;
   const percentChange = ((averageE1Rm - previousAverage) / previousAverage) * 100;
+  const isPr = percentChange > 0.5;
   if (percentChange >= 1) {
     return {
       tone: "positive",
-      label: "Výkon hore",
-      detail: `+${percentChange.toFixed(1)} % oproti minule`,
-      percentChange
+      label: isPr ? "Nový PR" : "Výkon hore",
+      detail: `+${deltaKg.toFixed(1)} kg / +${percentChange.toFixed(1)} % oproti najlepšiemu záznamu`,
+      percentChange,
+      deltaKg,
+      isPr
     };
   }
   if (percentChange <= -1) {
     return {
       tone: "negative",
       label: "Výkon dole",
-      detail: `${percentChange.toFixed(1)} % oproti minule`,
-      percentChange
+      detail: `${deltaKg.toFixed(1)} kg / ${percentChange.toFixed(1)} % oproti najlepšiemu záznamu`,
+      percentChange,
+      deltaKg,
+      isPr
     };
   }
 
   return {
     tone: "neutral",
     label: "Stabilné",
-    detail: `${percentChange >= 0 ? "+" : ""}${percentChange.toFixed(1)} % oproti minule`,
-    percentChange
+    detail: `${deltaKg >= 0 ? "+" : ""}${deltaKg.toFixed(1)} kg / ${percentChange >= 0 ? "+" : ""}${percentChange.toFixed(1)} % oproti najlepšiemu záznamu`,
+    percentChange,
+    deltaKg,
+    isPr
   };
 }
-

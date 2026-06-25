@@ -1,5 +1,6 @@
 .worktrees/
 node_modules/
+node_modules.broken-*/
 dist/
 .env
 .env.local
@@ -9,5 +10,7 @@ dist/
 playwright-report/
 test-results/
 .firebase/
+.firebase-config/
+dev-server*.log
 firebase-debug.log
 firestore-debug.log

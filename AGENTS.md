@@ -2,82 +2,100 @@
 
 ## Project
 
-Lean Bulk Tracker is a compact personal PWA for daily lean-bulk tracking, top sets, progress, and conservative 14-day calorie recommendations.
+Lean Bulk Tracker is a mobile-first React/TypeScript/Firebase PWA for lean-bulk tracking.
+
+It tracks:
+
+* daily body data,
+* calories/macros,
+* training top sets,
+* strength progress,
+* 14-day conservative calorie recommendations.
+
+See `DESIGN.md` for the visual system and `UX_FLOWS.md` for interaction flows.
+Before coding or finishing a task, follow `CODEX_CHECKLIST.md`.
 
 ## Stack
 
 * Vite
 * React
 * TypeScript
-* Firebase Auth / Firestore / Hosting
+* Firebase Auth
+* Firestore
+* pnpm
 * Vitest
 * Playwright
-* Firestore rules tests
-* pnpm
 
-## Important commands
+## Commands
 
 Use pnpm.
-
-* Install: `pnpm install`
-* Dev server: `pnpm dev`
-* Lint: `pnpm lint`
-* Unit tests: `pnpm test`
-* Build: `pnpm build`
-* Firestore rules tests: `pnpm test:rules`
-* E2E tests: `pnpm test:e2e`
-* Full verification: `pnpm verify`
-
-## Architecture
-
-* `src/domain` contains core business and safety logic. Treat it as high-risk.
-* `src/data` contains demo/local and Firebase persistence logic.
-* `src/app` contains UI, screens, and interaction flows.
-* `firestore.rules` and `tests/rules` protect cloud data access.
-
-## Safety rules
-
-* Never weaken validation.
-* Never make calorie recommendations auto-apply.
-* Missing, weak, malformed, or inconsistent data must never produce an actionable calorie change.
-* Do not change Firestore document paths or security rules unless explicitly required and covered by tests.
-* Preserve demo/local mode.
-* Preserve Slovak UI copy unless the task asks for copy changes.
-
-## UI rules
-
-* Mobile-first.
-* Keep inputs and buttons at least 44px tall.
-* Preserve light/dark mode.
-* Prefer existing CSS variables.
-* Do not add a new UI framework.
-* Use existing dependencies before adding new ones.
-* Ask before adding production dependencies.
-* Keep fitness-dashboard style clean, readable, and fast.
-
-## Testing expectations
-
-For UI-only changes, run at minimum:
 
 * `pnpm lint`
 * `pnpm test`
 * `pnpm build`
-
-For persistence, auth, Firestore, or rules changes, also run:
-
-* `pnpm test:rules`
-
-For user-flow changes, also run:
-
 * `pnpm test:e2e`
+* `pnpm test:rules`
+* `pnpm verify` — runs lint + test + build in one step. Run this as the default
+  validation command. Run `pnpm test:e2e` additionally only if a user-facing
+  flow changed, and `pnpm test:rules` additionally only if Firestore
+  rules/paths or data shape changed.
 
-If a command cannot run in the current environment, explain why and still run the closest relevant checks.
+## High-risk areas
 
-## Done definition
+Do not casually modify:
 
-A task is done only when:
+* `src/domain`
+* recommendation logic,
+* validation logic,
+* Firestore rules,
+* Firestore paths,
+* import/export schema,
+* demo/cloud data behavior.
 
-* TypeScript passes.
-* Relevant tests pass or failures are clearly explained.
-* The app behavior is preserved unless intentionally changed.
-* The final response lists changed files, validation commands, and follow-up risks.
+Changes to these areas require tests and explanation.
+
+## UI rules
+
+* Mobile-first.
+* Keep touch targets at least 44px tall.
+* Important numbers must be large and readable.
+* Trend colors must be semantic.
+* Do not rely on color alone.
+* Preserve light/dark mode.
+* Do not add a UI framework.
+* Do not add dependencies unless necessary.
+
+## Trend semantics
+
+Green means good in context.
+Red means bad/risky in context.
+Amber means warning.
+Neutral means no clear meaning or insufficient data.
+
+Never classify a trend only by plus/minus. Always go through a helper
+function (see `DESIGN.md`) rather than hardcoding a color from a sign.
+
+Examples:
+
+* strength increase = good,
+* waist increase = warning/bad,
+* weight increase during lean bulk can be good only if moderate,
+* weight gain too fast = warning/bad,
+* missing data = neutral.
+
+Numeric thresholds (e.g. what counts as "moderate" vs "too fast" weekly
+weight gain) live in `src/domain` as named constants. This document
+intentionally does not duplicate the numbers — read the source so the docs
+can't drift out of sync with the code.
+
+## Final answer requirements
+
+Every Codex final answer should include:
+
+* summary,
+* changed files,
+* tests run,
+* pass/fail status,
+* risks,
+* whether it is safe to commit,
+* whether it is safe to deploy.

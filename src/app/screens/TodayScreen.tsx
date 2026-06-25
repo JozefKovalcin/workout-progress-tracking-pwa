@@ -3,10 +3,17 @@ import { sk } from "date-fns/locale";
 import { useRef, useState, type FormEvent } from "react";
 import { calculateMacros, resolveDayType } from "../../domain/macros";
 import { summarizePerformance } from "../../domain/performance";
+import {
+  classifyCalorieAdherence,
+  classifyStrengthTrend,
+  classifyWaistTrend,
+  classifyWeightTrend
+} from "../../domain/trends";
 import type { DailyEntry, DayType } from "../../domain/types";
 import { validateDailyEntry } from "../../domain/validation";
 import type { TrackerDataSource, TrackerSnapshot } from "../../data/trackerData";
 import { fromLocalDate, toLocalDate } from "../../domain/date";
+import { NumberStepper } from "../components/NumberStepper";
 import { RecommendationCard } from "../components/RecommendationCard";
 import {
   average,
@@ -28,6 +35,21 @@ interface TodayScreenProps {
   uid: string;
   now: Date;
   onTraining(): void;
+}
+
+function validValues(values: Array<number | undefined>) {
+  return values.filter((value): value is number => Number.isFinite(value));
+}
+
+function valueChange(values: Array<number | undefined>) {
+  const valid = validValues(values);
+  return valid.length < 2 ? Number.NaN : valid.at(-1)! - valid[0];
+}
+
+function weightChangePct(values: Array<number | undefined>) {
+  const valid = validValues(values);
+  if (valid.length < 2 || valid[0] === 0) return Number.NaN;
+  return ((valid.at(-1)! - valid[0]) / valid[0]) * 100;
 }
 
 export function TodayScreen({
@@ -63,8 +85,18 @@ export function TodayScreen({
   const weekRows = recentDates(today, 7).reverse().map((item) => snapshot.dailyEntries.find((entry) => entry.date === item));
   const weights = weekEntries.map((item) => item.weightKg);
   const waists = weekEntries.map((item) => item.waistCm);
+  const weightTrendValues = weekRows.map((row) => row?.weightKg);
+  const waistTrendValues = weekRows.map((row) => row?.waistCm);
   const adherence = average(weekEntries.map((item) => item.calories === undefined ? undefined : Math.abs(item.calories - targetForEntry(snapshot, item.date, item.dayTypeOverride).calories) / targetForEntry(snapshot, item.date, item.dayTypeOverride).calories * 100));
   const performance = summarizePerformance(snapshot.topSets, today);
+  const weightClassification = classifyWeightTrend({
+    weeklyChangePct: weightChangePct(weightTrendValues),
+    targetGainMinPct: snapshot.profile?.targetGainMinPct ?? Number.NaN,
+    targetGainMaxPct: snapshot.profile?.targetGainMaxPct ?? Number.NaN
+  });
+  const waistClassification = classifyWaistTrend(valueChange(waistTrendValues));
+  const adherenceClassification = classifyCalorieAdherence(adherence);
+  const performanceClassification = classifyStrengthTrend(performance.overallPercent ?? Number.NaN);
   const currentPeriod = currentTargetPeriod(snapshot.targets, today);
 
   const save = async (event: FormEvent<HTMLFormElement>) => {
@@ -129,25 +161,25 @@ export function TodayScreen({
       <form className="panel entry-form" key={`${date}-${entry?.updatedAtMs ?? 0}`} onSubmit={save} noValidate>
         <div className="section-title"><div><small>Záznam</small><h2>{date}</h2></div>{dayType === "training" && <button type="button" className="text-button" onClick={onTraining}>Otvoriť tréning →</button>}</div>
         <div className="form-grid">
-          <label>Hmotnosť (kg)<input name="weightKg" type="number" step="0.1" defaultValue={entry?.weightKg ?? ""} /></label>
-          <label>Pás (cm)<input name="waistCm" type="number" step="0.1" defaultValue={entry?.waistCm ?? ""} /></label>
+          <NumberStepper label="Hmotnosť (kg)" name="weightKg" step={0.1} min={30} max={300} precision={1} suffix="kg" defaultValue={entry?.weightKg ?? ""} />
+          <NumberStepper label="Pás (cm)" name="waistCm" step={0.1} min={40} max={250} precision={1} suffix="cm" defaultValue={entry?.waistCm ?? ""} />
           <div className="field-with-action">
-            <label>Kalórie<input ref={caloriesInputRef} name="calories" type="number" defaultValue={entry?.calories ?? ""} /></label>
+            <NumberStepper label="Kalórie" name="calories" step={50} min={0} max={10000} suffix="kcal" defaultValue={entry?.calories ?? ""} inputRef={(node) => { caloriesInputRef.current = node; }} />
             {previousCalories !== undefined && <button type="button" className="text-button" onClick={() => { if (caloriesInputRef.current) caloriesInputRef.current.value = String(previousCalories); }}>Kopírovať včerajšie kalórie</button>}
           </div>
-          <label>Spánok 1–10<input name="sleepScore" type="number" min="1" max="10" defaultValue={entry?.sleepScore ?? ""} /></label>
-          <label>Pripravenosť 1–10<input name="readinessScore" type="number" min="1" max="10" defaultValue={entry?.readinessScore ?? ""} /></label>
-          {dayType === "training" && <label>Kvalita tréningu 1–10<input name="trainingQualityScore" type="number" min="1" max="10" defaultValue={entry?.trainingQualityScore ?? ""} /></label>}
+          <NumberStepper label="Spánok 1–10" name="sleepScore" step={1} min={1} max={10} precision={0} defaultValue={entry?.sleepScore ?? ""} />
+          <NumberStepper label="Pripravenosť 1–10" name="readinessScore" step={1} min={1} max={10} precision={0} defaultValue={entry?.readinessScore ?? ""} />
+          {dayType === "training" && <NumberStepper label="Kvalita tréningu 1–10" name="trainingQualityScore" step={1} min={1} max={10} precision={0} defaultValue={entry?.trainingQualityScore ?? ""} />}
         </div>
         {errors.length > 0 && <div className="error" role="alert">{errors.map((item) => <div key={item}>{item}</div>)}</div>}
         {saveMessage && <div aria-live="polite" role="status" className={saveMessage.startsWith("Uloženie zlyhalo") ? "error" : "save-success"}>{saveMessage}</div>}
         <button className="primary" type="submit" disabled={saving}>{saving ? "Ukladám…" : "Uložiť deň"}</button>
       </form>
       <div className="stats-grid">
-        <StatCard label="7 dní · hmotnosť" value={fmt(average(weights), " kg")} detail={trend(weekRows.map((row) => row?.weightKg), "kg")} />
-        <StatCard label="7 dní · pás" value={fmt(average(waists), " cm")} detail={trend(weekRows.map((row) => row?.waistCm), "cm")} />
-        <StatCard label="Kalorická odchýlka" value={fmt(adherence, " %")} detail="nižšie je lepšie" />
-        <StatCard label="Výkon" value={fmt(performance.overallPercent, " %")} detail={`${performance.comparableExercises} porovnateľných cvikov`} />
+        <StatCard label="7 dní · hmotnosť" value={fmt(average(weights), " kg")} detail={trend(weightTrendValues, "kg")} toneClassName={weightClassification.className} badge={weightClassification.badge} />
+        <StatCard label="7 dní · pás" value={fmt(average(waists), " cm")} detail={trend(waistTrendValues, "cm")} toneClassName={waistClassification.className} badge={waistClassification.badge} />
+        <StatCard label="Kalorická odchýlka" value={fmt(adherence, " %")} detail="nižšie je lepšie" toneClassName={adherenceClassification.className} badge={adherenceClassification.badge} />
+        <StatCard label="Výkon" value={fmt(performance.overallPercent, " %")} detail={`${performance.comparableExercises} porovnateľných cvikov`} toneClassName={performanceClassification.className} badge={performanceClassification.badge} />
       </div>
       <RecommendationCard
         snapshot={snapshot}

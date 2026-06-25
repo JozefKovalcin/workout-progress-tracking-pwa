@@ -10,6 +10,7 @@ interface LineChartProps {
   unit: string;
   secondaryPoints?: ProgressPoint[];
   secondaryLabel?: string;
+  deltaClassName?: string;
 }
 
 export function LineChart({
@@ -18,7 +19,8 @@ export function LineChart({
   points,
   unit,
   secondaryPoints = [],
-  secondaryLabel
+  secondaryLabel,
+  deltaClassName = "trend-neutral"
 }: LineChartProps) {
   const [selected, setSelected] = useState<ProgressPoint | null>(null);
   const latest = points.at(-1);
@@ -64,7 +66,7 @@ export function LineChart({
     <section className="panel chart-card">
       <div className="chart-heading">
         <div><small>{title}</small><h2>{latest!.value.toFixed(1)}{unit}</h2></div>
-        <strong className={delta >= 0 ? "positive" : "negative"}>{delta >= 0 ? "+" : ""}{delta.toFixed(1)}{unit}</strong>
+        <strong className={deltaClassName}>{delta >= 0 ? "+" : ""}{delta.toFixed(1)}{unit}</strong>
       </div>
       <div className="chart-scale" aria-hidden="true"><span>{max.toFixed(1)}{unit}</span><span>{min.toFixed(1)}{unit}</span></div>
       <svg className="line-chart" viewBox={`0 0 ${width} ${height}`} role="img" aria-label={ariaLabel}>

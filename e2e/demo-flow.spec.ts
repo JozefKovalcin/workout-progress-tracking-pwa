@@ -1,18 +1,45 @@
 import { expect, test } from "@playwright/test";
 
 test("demo flow saves daily data, training, progress, and export", async ({ page }) => {
+  const fillPageNumber = async (name: string | RegExp, value: string) => {
+    await page.getByRole("spinbutton", { name }).fill(value);
+  };
+
+  await page.addInitScript({
+    content: `
+      (() => {
+        const fixedNow = new Date("2026-06-19T10:00:00.000Z").valueOf();
+        const RealDate = Date;
+        class FixedDate extends RealDate {
+          constructor(...args) {
+            if (args.length === 0) {
+              super(fixedNow);
+            } else {
+              super(...args);
+            }
+          }
+
+          static now() {
+            return fixedNow;
+          }
+        }
+        window.Date = FixedDate;
+      })();
+    `
+  });
+
   await page.goto("/");
 
   await page.getByRole("button", { name: "Lokálny demo režim" }).click();
   await expect(page.getByRole("heading", { name: "Dnes" })).toBeVisible();
 
-  await page.getByLabel("Hmotnosť (kg)").fill("81.8");
-  await page.getByLabel("Pás (cm)").fill("82");
-  await page.getByLabel("Kalórie").fill("2850");
-  await page.getByLabel("Spánok 1–10").fill("8");
-  await page.getByLabel("Pripravenosť 1–10").fill("8");
+  await fillPageNumber("Hmotnosť (kg)", "81.8");
+  await fillPageNumber("Pás (cm)", "82");
+  await fillPageNumber("Kalórie", "2850");
+  await fillPageNumber("Spánok 1–10", "8");
+  await fillPageNumber("Pripravenosť 1–10", "8");
 
-  const trainingQuality = page.getByLabel("Kvalita tréningu 1–10");
+  const trainingQuality = page.getByRole("spinbutton", { name: "Kvalita tréningu 1–10" });
   if (await trainingQuality.count()) {
     await trainingQuality.fill("8");
   }
@@ -26,13 +53,17 @@ test("demo flow saves daily data, training, progress, and export", async ({ page
     await switchToTraining.click();
   }
 
-  await expect(page.locator(".exercise-card").first()).toBeVisible();
-  await page.getByLabel("Séria 1 kg").first().fill("100");
-  await page.getByLabel("Séria 1 opakovania").first().fill("6");
-  await page.getByLabel("Séria 1 RIR").first().fill("2");
-  await page.getByLabel("Séria 2 kg").first().fill("90");
-  await page.getByLabel("Séria 2 opakovania").first().fill("10");
-  await page.getByLabel("Séria 2 RIR").first().fill("1");
+  const exerciseCard = page.locator(".exercise-card").first();
+  const fillExerciseNumber = async (name: string, value: string) => {
+    await exerciseCard.getByRole("spinbutton", { name }).fill(value);
+  };
+  await expect(exerciseCard).toBeVisible();
+  await fillExerciseNumber("Séria 1 kg", "100");
+  await fillExerciseNumber("Séria 1 opakovania", "6");
+  await fillExerciseNumber("Séria 1 RIR", "2");
+  await fillExerciseNumber("Séria 2 kg", "90");
+  await fillExerciseNumber("Séria 2 opakovania", "10");
+  await fillExerciseNumber("Séria 2 RIR", "1");
   await expect(page.getByText(/Live e1RM/).first()).toBeVisible();
   await page.getByRole("button", { name: "Uložiť 2 série" }).first().click();
   await expect(page.getByText("Tréning uložený.")).toBeVisible();
@@ -45,4 +76,5 @@ test("demo flow saves daily data, training, progress, and export", async ({ page
   const download = page.waitForEvent("download");
   await page.getByRole("button", { name: "Exportovať JSON" }).click();
   await expect((await download).suggestedFilename()).toContain("lean-bulk-export");
+  await page.context().close();
 });
