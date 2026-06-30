@@ -154,33 +154,38 @@ describe("default tracker data", () => {
           "seated-lying-leg-curl",
           "standing-calf-raise",
           "cable-crunch"
-        ]
+        ],
+        categoryNames: []
       },
-      { weekday: 2, label: "Voľno", enabled: false, exerciseIds: [] },
+      { weekday: 2, label: "Voľno", enabled: false, exerciseIds: [], categoryNames: [] },
       {
         weekday: 3,
         label: "Hrudník priority / pull",
         enabled: true,
-        exerciseIds: ["incline-db-press", "chest-supported-row"]
+        exerciseIds: ["incline-db-press", "chest-supported-row"],
+        categoryNames: []
       },
-      { weekday: 4, label: "Voľno", enabled: false, exerciseIds: [] },
+      { weekday: 4, label: "Voľno", enabled: false, exerciseIds: [], categoryNames: [] },
       {
         weekday: 5,
         label: "Pump / objem",
         enabled: true,
-        exerciseIds: ["machine-chest-press", "cable-lateral-raise", "chin-row"]
+        exerciseIds: ["machine-chest-press", "cable-lateral-raise", "chin-row"],
+        categoryNames: []
       },
       {
         weekday: 6,
         label: "Posterior / pull",
         enabled: true,
-        exerciseIds: ["rdl", "hip-thrust", "walking-lunge", "lat-pulldown"]
+        exerciseIds: ["rdl", "hip-thrust", "walking-lunge", "lat-pulldown"],
+        categoryNames: []
       },
       {
         weekday: 7,
         label: "Hrudník weakpoint / brucho",
         enabled: true,
-        exerciseIds: ["flat-bench-press", "dragon-flag"]
+        exerciseIds: ["flat-bench-press", "dragon-flag"],
+        categoryNames: []
       }
     ]);
   });

@@ -109,10 +109,10 @@ export function ProgressScreen({ snapshot, today }: ProgressScreenProps) {
         </label>
       </section>
       <div className="progress-grid chart-grid">
-        <LineChart title="Hmotnosť" ariaLabel="Graf hmotnosti" points={weight} unit=" kg" secondaryPoints={weightAverage} secondaryLabel="7-dňový priemer" deltaClassName={weightClassification.className} />
-        <LineChart title="Pás" ariaLabel="Graf pásu" points={waist} unit=" cm" deltaClassName={waistClassification.className} />
-        <LineChart title="Kalórie" ariaLabel="Graf kalórií" points={calories} unit=" kcal" deltaClassName="trend-neutral" />
-        <LineChart title={`Sila · ${selectedExercise?.name ?? "vyber cvik"}`} ariaLabel={`Graf sily ${selectedExercise?.name ?? ""}`.trim()} points={strength} unit=" kg" deltaClassName={strengthClassification.className} />
+        <LineChart title="Hmotnosť" ariaLabel="Graf hmotnosti" points={weight} unit=" kg" secondaryPoints={weightAverage} secondaryLabel="7-dňový priemer" deltaClassName={weightClassification.className} yAxisLabel="Hmotnosť (kg)" />
+        <LineChart title="Pás" ariaLabel="Graf pásu" points={waist} unit=" cm" deltaClassName={waistClassification.className} yAxisLabel="Pás (cm)" />
+        <LineChart title="Kalórie" ariaLabel="Graf kalórií" points={calories} unit=" kcal" deltaClassName="trend-neutral" yAxisLabel="Kalórie (kcal)" />
+        <LineChart title={`Sila · ${selectedExercise?.name ?? "vyber cvik"}`} ariaLabel={`Graf sily ${selectedExercise?.name ?? ""}`.trim()} points={strength} unit=" kg" deltaClassName={strengthClassification.className} yAxisLabel="e1RM (kg)" />
       </div>
       <section className="panel">
         <div className="section-title"><div><small>Hlavné cviky</small><h2>Výkon {fmt(performance.overallPercent, " %")}</h2></div><span className="pill">{performance.comparableExercises} porovnaní</span></div>

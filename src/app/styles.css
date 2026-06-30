@@ -285,6 +285,23 @@ small { color: var(--muted); }
 .history-list button span:last-child { color: var(--muted); font-size: .8rem; }
 .exercise-list { display: grid; gap: 12px; }
 .exercise-card { padding: 18px; }
+.training-date-panel {
+  display: grid;
+  grid-template-columns: minmax(0, 260px) 1fr auto;
+  gap: 12px;
+  align-items: end;
+}
+.training-date-panel > div {
+  display: grid;
+  gap: 4px;
+  min-height: 44px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: var(--surface-2);
+}
+.training-date-panel strong { font-size: 1rem; }
+.training-date-panel span { color: var(--muted); font-size: .78rem; font-weight: 650; }
+.training-date-panel .error { grid-column: 1 / -1; margin: 0; }
 .exercise-heading span { color: var(--muted); font-size: .75rem; }
 .previous, .set-result { margin-bottom: 12px; color: var(--muted); font-size: .8rem; }
 .previous-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 12px; }
@@ -363,6 +380,12 @@ small { color: var(--muted); }
 .chart-line { stroke: var(--accent); stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; }
 .secondary-line { stroke: color-mix(in srgb, var(--text) 45%, transparent); stroke-width: 2; stroke-dasharray: 8 8; }
 .chart-grid-line { stroke: var(--line); stroke-width: 1; }
+.chart-axis-label {
+  fill: var(--muted);
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: 0;
+}
 .line-chart circle { fill: var(--surface); stroke: var(--accent); stroke-width: 3; vector-effect: non-scaling-stroke; }
 .chart-dates { display: flex; justify-content: space-between; color: var(--muted); font-size: .7rem; }
 .chart-empty { display: grid; place-items: center; height: 190px; color: var(--muted); font-size: .8rem; }
@@ -412,6 +435,16 @@ small { color: var(--muted); }
 .day-settings summary { min-height: 48px; display: flex; justify-content: space-between; align-items: center; padding: 10px 13px; cursor: pointer; font-weight: 750; }
 .day-settings summary span:last-child { color: var(--muted); font-size: .75rem; }
 .day-editor { display: grid; gap: 10px; padding: 0 13px 13px; }
+.day-picker-group {
+  display: grid;
+  gap: 7px;
+}
+.day-picker-group > small {
+  text-transform: uppercase;
+  letter-spacing: .08em;
+  font-size: .68rem;
+  font-weight: 800;
+}
 .checkbox-list { display: grid; gap: 5px; }
 .checkbox-list > div { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .checkbox-list button { min-width: 44px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); color: var(--text); }
@@ -435,6 +468,8 @@ small { color: var(--muted); }
 @media (max-width: 700px) {
   .hero-card { align-items: flex-start; flex-direction: column; }
   .day-toggle { max-width: none; width: 100%; }
+  .training-date-panel { grid-template-columns: 1fr; }
+  .training-date-panel .text-button { justify-self: start; }
   .form-grid, .topset-grid { grid-template-columns: 1fr; }
   .progress-grid { grid-template-columns: 1fr; }
   .progress-controls { align-items: stretch; flex-direction: column; }
@@ -461,7 +496,7 @@ small { color: var(--muted); }
   .form-grid { grid-template-columns: repeat(3, 1fr); }
 }
 
-@media (min-width: 1200px) {
+@media (min-width: 1200px) and (max-width: 1499px) {
   .working-sets { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 

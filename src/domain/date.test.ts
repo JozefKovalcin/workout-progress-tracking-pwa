@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import * as dates from "./date";
 import { fromLocalDate, isLocalDate, weekdayIso } from "./date";
 import type { LocalDate } from "./types";
 
@@ -20,5 +21,12 @@ describe("local date validation", () => {
     expect(() => fromLocalDate(value as LocalDate)).toThrow(
       `Invalid local date "${value}": expected a real calendar date in YYYY-MM-DD format`
     );
+  });
+
+  it("formats local dates for display as DD/MM/YYYY", () => {
+    expect(
+      (dates as { formatDisplayDate?: (value: LocalDate) => string })
+        .formatDisplayDate?.("2026-06-09")
+    ).toBe("09/06/2026");
   });
 });

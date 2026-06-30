@@ -6,7 +6,13 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { calculateMacros } from "../domain/macros";
 import { buildEvaluationMetrics } from "../domain/analytics";
 import { fromLocalDate, toLocalDate } from "../domain/date";
-import type { DailyEntry, LocalDate, TargetPeriod, TopSet } from "../domain/types";
+import type {
+  DailyEntry,
+  LocalDate,
+  TargetPeriod,
+  TopSet,
+  TrainingDayPlan
+} from "../domain/types";
 import { makeTopSet } from "../test/fixtures";
 import type {
   StoredRecommendation,
@@ -416,7 +422,7 @@ describe("App demo mode", () => {
 
     expect(await screen.findByText("Blok dát")).toBeVisible();
     expect(screen.getByText("Pás")).toBeVisible();
-    expect(screen.getByText(/2026-06-19/)).toBeVisible();
+    expect(screen.getAllByText(/19\/06\/2026/).length).toBeGreaterThan(0);
 
     fireEvent.click(screen.getByRole("button", { name: "Kopírovať včerajšie kalórie" }));
 
@@ -480,6 +486,143 @@ describe("App demo mode", () => {
     );
     expect(await screen.findByText(/Priemerné e1RM 120\.0 kg/)).toBeVisible();
     expect(screen.getByText("Tréning uložený.")).toBeVisible();
+  });
+
+  it("saves a top set for a selected previous training date", async () => {
+    const data = makeDataSource(makeSnapshot({
+      exercises: [{
+        id: "bench",
+        name: "Bench press",
+        muscleGroup: "Hrudník",
+        repMin: 6,
+        repMax: 10,
+        isMain: true
+      }],
+      trainingDays: [{
+        weekday: 5,
+        label: "Push",
+        enabled: true,
+        exerciseIds: ["bench"]
+      }]
+    }));
+    demoMock.source = data;
+    render(<App initialMode="demo" now={new Date(2026, 5, 20)} />);
+
+    fireEvent.click((await screen.findAllByRole("button", { name: "Tréning" }))[0]);
+    fireEvent.change(await screen.findByLabelText("Dátum tréningu"), {
+      target: { value: "2026-06-19" }
+    });
+    expect((await screen.findAllByText("19/06/2026")).length).toBeGreaterThan(0);
+    fireEvent.change(await screen.findByLabelText("Séria 1 kg"), {
+      target: { value: "100" }
+    });
+    fireEvent.change(screen.getByLabelText("Séria 1 opakovania"), {
+      target: { value: "6" }
+    });
+    fireEvent.change(screen.getByLabelText("Séria 1 RIR"), {
+      target: { value: "2" }
+    });
+    fireEvent.change(screen.getByLabelText("Séria 2 kg"), {
+      target: { value: "90" }
+    });
+    fireEvent.change(screen.getByLabelText("Séria 2 opakovania"), {
+      target: { value: "10" }
+    });
+    fireEvent.change(screen.getByLabelText("Séria 2 RIR"), {
+      target: { value: "1" }
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Uložiť 2 série" }));
+
+    await waitFor(() => expect(data.saveTopSet).toHaveBeenCalledOnce());
+    expect(data.saveTopSet).toHaveBeenCalledWith(
+      "demo",
+      expect.objectContaining({
+        id: "2026-06-19__bench",
+        date: "2026-06-19",
+        exerciseId: "bench"
+      })
+    );
+  });
+
+  it("includes exercises from a training day category in the training screen", async () => {
+    const categoryDay = {
+      weekday: 5,
+      label: "Push",
+      enabled: true,
+      exerciseIds: [],
+      categoryNames: ["Hrudník"]
+    } as TrainingDayPlan;
+    demoMock.source = makeDataSource(makeSnapshot({
+      exercises: [
+        {
+          id: "bench",
+          name: "Bench press",
+          muscleGroup: "Hrudník",
+          repMin: 6,
+          repMax: 10,
+          isMain: true
+        },
+        {
+          id: "row",
+          name: "Chest-supported row",
+          muscleGroup: "Chrbát",
+          repMin: 8,
+          repMax: 12,
+          isMain: true
+        }
+      ],
+      trainingDays: [categoryDay]
+    }));
+    render(<App initialMode="demo" now={new Date(2026, 5, 19)} />);
+
+    fireEvent.click((await screen.findAllByRole("button", { name: "Tréning" }))[0]);
+
+    expect(await screen.findByText("Bench press")).toBeVisible();
+    expect(screen.queryByText("Chest-supported row")).not.toBeInTheDocument();
+  });
+
+  it("assigns exercise categories to a training day in settings", async () => {
+    const data = makeDataSource(makeSnapshot({
+      exercises: [
+        {
+          id: "bench",
+          name: "Bench press",
+          muscleGroup: "Hrudník",
+          repMin: 6,
+          repMax: 10,
+          isMain: true
+        },
+        {
+          id: "pushdown",
+          name: "Triceps pushdown",
+          muscleGroup: "Triceps",
+          repMin: 10,
+          repMax: 15,
+          isMain: true
+        }
+      ],
+      trainingDays: [{
+        weekday: 5,
+        label: "Push",
+        enabled: true,
+        exerciseIds: [],
+        categoryNames: []
+      } as TrainingDayPlan]
+    }));
+    demoMock.source = data;
+    render(<App initialMode="demo" now={new Date(2026, 5, 19)} />);
+
+    fireEvent.click((await screen.findAllByRole("button", { name: "Nastavenia" }))[0]);
+    fireEvent.click(await screen.findByText("5. Push"));
+    fireEvent.click(await screen.findByLabelText("Kategória Hrudník"));
+
+    expect(data.saveTrainingDay).toHaveBeenCalledWith(
+      "demo",
+      expect.objectContaining({
+        weekday: 5,
+        categoryNames: ["Hrudník"]
+      })
+    );
   });
 
   it("repeats the previous top set and shows live training feedback", async () => {
@@ -640,6 +783,8 @@ describe("App demo mode", () => {
     const chartGrid = document.querySelector(".chart-grid");
     expect(chartGrid).toBeInTheDocument();
     expect(within(chartGrid as HTMLElement).getAllByRole("img")).toHaveLength(4);
+    expect(within(chartGrid as HTMLElement).getAllByText("Dátum").length).toBeGreaterThan(0);
+    expect(within(chartGrid as HTMLElement).getByText("Hmotnosť (kg)")).toBeVisible();
     const weightPoints = screen.getByRole("img", { name: "Graf hmotnosti" }).querySelectorAll("circle");
     expect(Number(weightPoints[1].getAttribute("cx"))).toBeLessThan(200);
   });
@@ -680,6 +825,7 @@ describe("App demo mode", () => {
     expect(screen.getAllByText("7-dňový priemer").length).toBeGreaterThan(0);
     fireEvent.click(screen.getAllByRole("button", { name: /Hmotnosť bod/ })[0]);
     expect(screen.getAllByText(/Vybraný bod/).length).toBeGreaterThan(0);
+    expect(screen.getAllByText("14/06/2026").length).toBeGreaterThan(0);
   });
 
   it("shows app validation instead of silently blocking a decimal score", async () => {

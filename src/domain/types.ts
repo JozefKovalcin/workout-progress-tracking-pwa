@@ -42,6 +42,7 @@ export interface TrainingDayPlan {
   label: string;
   enabled: boolean;
   exerciseIds: string[];
+  categoryNames?: string[];
 }
 
 export interface WorkingSet {

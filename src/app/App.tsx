@@ -25,6 +25,7 @@ interface AppProps {
 }
 
 export function App({ initialMode, now = new Date() }: AppProps) {
+  const today = toLocalDate(now);
   const [mode, setMode] = useState<Mode | null>(() => initialMode ?? localStorage.getItem(MODE_KEY) as Mode | null);
   const [uid, setUid] = useState<string | null>(mode === "demo" ? "demo" : null);
   const [data, setData] = useState<TrackerDataSource | null>(() => mode === "demo" ? createDemoTrackerData(localStorage) : null);
@@ -33,9 +34,9 @@ export function App({ initialMode, now = new Date() }: AppProps) {
     snapshot: TrackerSnapshot;
   }>({ ownerUid: null, snapshot: EMPTY_SNAPSHOT });
   const [screen, setScreen] = useState<Screen>("today");
+  const [trainingDate, setTrainingDate] = useState(today);
   const [authError, setAuthError] = useState("");
   const [authenticating, setAuthenticating] = useState(false);
-  const today = toLocalDate(now);
   const allowDemo = import.meta.env.VITE_USE_FIREBASE_EMULATORS === "true" || initialMode === "demo";
   const snapshot = snapshotState.ownerUid === uid ? snapshotState.snapshot : EMPTY_SNAPSHOT;
 
@@ -122,10 +123,14 @@ export function App({ initialMode, now = new Date() }: AppProps) {
     setData(null);
     setSnapshotState({ ownerUid: null, snapshot: EMPTY_SNAPSHOT });
   };
-  const switchTodayToTraining = async () => {
+  const switchDayToTraining = async (date: typeof today) => {
     if (!data || !uid) return;
-    const current = snapshot.dailyEntries.find((item) => item.date === today);
-    await data.saveDailyEntry(uid, { ...current, date: today, dayTypeOverride: "training", updatedAtMs: new Date().valueOf() });
+    const current = snapshot.dailyEntries.find((item) => item.date === date);
+    await data.saveDailyEntry(uid, { ...current, date, dayTypeOverride: "training", updatedAtMs: new Date().valueOf() });
+    setScreen("training");
+  };
+  const openTraining = (date: typeof today) => {
+    setTrainingDate(date);
     setScreen("training");
   };
 
@@ -143,8 +148,8 @@ export function App({ initialMode, now = new Date() }: AppProps) {
   if (!snapshot.profile) return <main className="loading"><div className="brand-mark">LB</div><p>Pripravujem tracker…</p></main>;
 
   const content = {
-    today: <TodayScreen snapshot={snapshot} data={data} uid={uid} now={now} onTraining={() => setScreen("training")} />,
-    training: <TrainingScreen snapshot={snapshot} data={data} uid={uid} today={today} onSwitchToday={() => void switchTodayToTraining()} />,
+    today: <TodayScreen snapshot={snapshot} data={data} uid={uid} now={now} onTraining={openTraining} />,
+    training: <TrainingScreen snapshot={snapshot} data={data} uid={uid} today={today} selectedDate={trainingDate} onDateChange={setTrainingDate} onSwitchDayToTraining={(date) => void switchDayToTraining(date)} />,
     progress: <ProgressScreen snapshot={snapshot} today={today} />,
     settings: <SettingsScreen snapshot={snapshot} data={data} uid={uid} mode={mode} onSignOut={() => void signOut()} />
   }[screen];
@@ -161,4 +166,3 @@ export function App({ initialMode, now = new Date() }: AppProps) {
     </div>
   );
 }
-

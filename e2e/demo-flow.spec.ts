@@ -1,14 +1,10 @@
 import { expect, test } from "@playwright/test";
 
-test("demo flow saves daily data, training, progress, and export", async ({ page }) => {
-  const fillPageNumber = async (name: string | RegExp, value: string) => {
-    await page.getByRole("spinbutton", { name }).fill(value);
-  };
-
+async function freezeDate(page: import("@playwright/test").Page, isoDate: string) {
   await page.addInitScript({
     content: `
       (() => {
-        const fixedNow = new Date("2026-06-19T10:00:00.000Z").valueOf();
+        const fixedNow = new Date("${isoDate}T10:00:00.000Z").valueOf();
         const RealDate = Date;
         class FixedDate extends RealDate {
           constructor(...args) {
@@ -27,6 +23,14 @@ test("demo flow saves daily data, training, progress, and export", async ({ page
       })();
     `
   });
+}
+
+test("demo flow saves daily data, training, progress, and export", async ({ page }) => {
+  const fillPageNumber = async (name: string | RegExp, value: string) => {
+    await page.getByRole("spinbutton", { name }).fill(value);
+  };
+
+  await freezeDate(page, "2026-06-19");
 
   await page.goto("/");
 
@@ -77,4 +81,23 @@ test("demo flow saves daily data, training, progress, and export", async ({ page
   await page.getByRole("button", { name: "Exportovať JSON" }).click();
   await expect((await download).suggestedFilename()).toContain("lean-bulk-export");
   await page.context().close();
+});
+
+test("training form keeps working-set inputs readable in wide two-column layout", async ({ page }) => {
+  await page.setViewportSize({ width: 2048, height: 1200 });
+  await freezeDate(page, "2026-06-19");
+
+  await page.goto("/");
+  await page.getByRole("button", { name: "Lokálny demo režim" }).click();
+  await page.getByRole("button", { name: "Tréning" }).first().click();
+
+  const exerciseCard = page.locator(".exercise-card").first();
+  await expect(exerciseCard).toBeVisible();
+
+  const workingSet = exerciseCard.locator(".working-set").first();
+  const workingSetBox = await workingSet.boundingBox();
+  expect(workingSetBox?.width).toBeGreaterThanOrEqual(520);
+
+  const firstSetControls = workingSet.locator(".number-stepper-control");
+  await expect(firstSetControls).toHaveCount(3);
 });

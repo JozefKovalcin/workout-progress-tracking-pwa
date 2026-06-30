@@ -1,6 +1,6 @@
 import { differenceInCalendarDays } from "date-fns";
 import { useState } from "react";
-import { fromLocalDate } from "../../domain/date";
+import { formatDisplayDate, fromLocalDate } from "../../domain/date";
 import type { ProgressPoint } from "../../domain/progress";
 
 interface LineChartProps {
@@ -11,6 +11,8 @@ interface LineChartProps {
   secondaryPoints?: ProgressPoint[];
   secondaryLabel?: string;
   deltaClassName?: string;
+  xAxisLabel?: string;
+  yAxisLabel?: string;
 }
 
 export function LineChart({
@@ -20,7 +22,9 @@ export function LineChart({
   unit,
   secondaryPoints = [],
   secondaryLabel,
-  deltaClassName = "trend-neutral"
+  deltaClassName = "trend-neutral",
+  xAxisLabel = "Dátum",
+  yAxisLabel = "Hodnota"
 }: LineChartProps) {
   const [selected, setSelected] = useState<ProgressPoint | null>(null);
   const latest = points.at(-1);
@@ -36,8 +40,8 @@ export function LineChart({
 
   const width = 600;
   const height = 220;
-  const paddingX = 34;
-  const paddingY = 24;
+  const paddingX = 48;
+  const paddingY = 28;
   const allPoints = [...points, ...secondaryPoints];
   const min = Math.min(...allPoints.map((point) => point.value));
   const max = Math.max(...allPoints.map((point) => point.value));
@@ -73,9 +77,11 @@ export function LineChart({
         <path className="chart-grid-line" d={`M ${paddingX} ${paddingY} H ${width - paddingX} M ${paddingX} ${height - paddingY} H ${width - paddingX}`} />
         {secondaryPath && <path className="chart-line secondary-line" d={secondaryPath} />}
         <path className="chart-line" d={path} />
+        <text className="chart-axis-label chart-axis-label-y" x="14" y={height / 2} textAnchor="middle" transform={`rotate(-90 14 ${height / 2})`}>{yAxisLabel}</text>
+        <text className="chart-axis-label chart-axis-label-x" x={width / 2} y={height - 4} textAnchor="middle">{xAxisLabel}</text>
         {coordinates.map((point) => (
           <circle key={`${point.date}-${point.value}`} cx={point.x} cy={point.y} r="5">
-            <title>{point.date}: {point.value.toFixed(1)}{unit}</title>
+            <title>{formatDisplayDate(point.date)}: {point.value.toFixed(1)}{unit}</title>
           </circle>
         ))}
       </svg>
@@ -85,14 +91,14 @@ export function LineChart({
             key={`${point.date}-${point.value}`}
             type="button"
             className={selectedPoint.date === point.date ? "active" : ""}
-            aria-label={`${title} bod ${point.date}`}
+            aria-label={`${title} bod ${formatDisplayDate(point.date)}`}
             onClick={() => setSelected(point)}
           />
         ))}
       </div>
       {secondaryLabel && <p className="chart-legend"><span />{secondaryLabel}</p>}
-      <p className="selected-point">Vybraný bod: <strong>{selectedPoint.date}</strong> · {selectedPoint.value.toFixed(1)}{unit}</p>
-      <div className="chart-dates"><span>{points[0].date}</span><span>{latest!.date}</span></div>
+      <p className="selected-point">Vybraný bod: <strong>{formatDisplayDate(selectedPoint.date)}</strong> · {selectedPoint.value.toFixed(1)}{unit}</p>
+      <div className="chart-dates"><span>{formatDisplayDate(points[0].date)}</span><span>{formatDisplayDate(latest!.date)}</span></div>
     </section>
   );
 }

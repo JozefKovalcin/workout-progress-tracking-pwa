@@ -3,6 +3,7 @@ import {
   calculateE1Rm,
   workoutE1Rm
 } from "../../domain/performance";
+import { formatDisplayDate } from "../../domain/date";
 import type { Exercise, LocalDate, TopSet } from "../../domain/types";
 import { validateTopSet } from "../../domain/validation";
 import { requiredNumber } from "../helpers";
@@ -163,7 +164,7 @@ export function TopSetForm({ exercise, date, sets, save }: TopSetFormProps) {
           {previousBests.map((item) => (
             <div key={item.label}>
               <span className="pill trend-neutral">{item.label}</span>
-              <strong>{item.set.date}</strong>
+              <strong>{formatDisplayDate(item.set.date)}</strong>
               <small>{item.set.weightKg} kg · {item.set.reps} op. · RIR {item.set.rir} · e1RM {item.e1RmKg.toFixed(1)} kg</small>
             </div>
           ))}

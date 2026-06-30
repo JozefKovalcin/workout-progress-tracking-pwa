@@ -23,7 +23,11 @@ const seedState = (): DemoState => ({
   profile: { ...CALIBRATION_PROFILE },
   dailyEntries: [],
   exercises: DEFAULT_EXERCISES.map((row) => ({ ...row })),
-  trainingDays: DEFAULT_TRAINING_DAYS.map((row) => ({ ...row, exerciseIds: [...row.exerciseIds] })),
+  trainingDays: DEFAULT_TRAINING_DAYS.map((row) => ({
+    ...row,
+    exerciseIds: [...row.exerciseIds],
+    categoryNames: [...(row.categoryNames ?? [])]
+  })),
   topSets: [],
   targets: [{
     id: CALIBRATION_PROFILE.startDate,

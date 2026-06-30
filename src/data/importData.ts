@@ -119,6 +119,7 @@ function normalizeExercise(value: Row): Exercise {
 }
 
 function normalizeTrainingDay(value: Row): TrainingDayPlan {
+  const categoryNames = value.categoryNames;
   if (
     !Number.isInteger(value.weekday) ||
     (value.weekday as number) < 1 ||
@@ -126,7 +127,8 @@ function normalizeTrainingDay(value: Row): TrainingDayPlan {
     !text(value.label) ||
     typeof value.enabled !== "boolean" ||
     !Array.isArray(value.exerciseIds) ||
-    !value.exerciseIds.every(text)
+    !value.exerciseIds.every(text) ||
+    (categoryNames !== undefined && (!Array.isArray(categoryNames) || !categoryNames.every(text)))
   ) {
     throw new Error("Tréningový deň v importe nie je platný.");
   }
@@ -135,7 +137,8 @@ function normalizeTrainingDay(value: Row): TrainingDayPlan {
     weekday: value.weekday as TrainingDayPlan["weekday"],
     label: value.label,
     enabled: value.enabled,
-    exerciseIds: value.exerciseIds
+    exerciseIds: value.exerciseIds,
+    categoryNames: categoryNames ?? []
   };
 }
 
@@ -248,4 +251,3 @@ export function normalizeImportedSnapshot(value: unknown): TrackerSnapshot {
     recommendations: expectArray(value.recommendations).map(normalizeRecommendation)
   };
 }
-

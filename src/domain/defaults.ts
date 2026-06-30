@@ -46,6 +46,7 @@ export const DEFAULT_TRAINING_DAYS: TrainingDayPlan[] = [
     weekday: 1,
     label: "Lower / quads",
     enabled: true,
+    categoryNames: [],
     exerciseIds: [
       "hack-squat-leg-press",
       "seated-lying-leg-curl",
@@ -53,30 +54,34 @@ export const DEFAULT_TRAINING_DAYS: TrainingDayPlan[] = [
       "cable-crunch"
     ]
   },
-  { weekday: 2, label: "Voľno", enabled: false, exerciseIds: [] },
+  { weekday: 2, label: "Voľno", enabled: false, exerciseIds: [], categoryNames: [] },
   {
     weekday: 3,
     label: "Hrudník priority / pull",
     enabled: true,
+    categoryNames: [],
     exerciseIds: ["incline-db-press", "chest-supported-row"]
   },
-  { weekday: 4, label: "Voľno", enabled: false, exerciseIds: [] },
+  { weekday: 4, label: "Voľno", enabled: false, exerciseIds: [], categoryNames: [] },
   {
     weekday: 5,
     label: "Pump / objem",
     enabled: true,
+    categoryNames: [],
     exerciseIds: ["machine-chest-press", "cable-lateral-raise", "chin-row"]
   },
   {
     weekday: 6,
     label: "Posterior / pull",
     enabled: true,
+    categoryNames: [],
     exerciseIds: ["rdl", "hip-thrust", "walking-lunge", "lat-pulldown"]
   },
   {
     weekday: 7,
     label: "Hrudník weakpoint / brucho",
     enabled: true,
+    categoryNames: [],
     exerciseIds: ["flat-bench-press", "dragon-flag"]
   }
 ];

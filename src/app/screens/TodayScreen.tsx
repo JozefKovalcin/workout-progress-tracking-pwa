@@ -12,7 +12,7 @@ import {
 import type { DailyEntry, DayType } from "../../domain/types";
 import { validateDailyEntry } from "../../domain/validation";
 import type { TrackerDataSource, TrackerSnapshot } from "../../data/trackerData";
-import { fromLocalDate, toLocalDate } from "../../domain/date";
+import { formatDisplayDate, fromLocalDate, toLocalDate } from "../../domain/date";
 import { NumberStepper } from "../components/NumberStepper";
 import { RecommendationCard } from "../components/RecommendationCard";
 import {
@@ -34,7 +34,7 @@ interface TodayScreenProps {
   data: TrackerDataSource;
   uid: string;
   now: Date;
-  onTraining(): void;
+  onTraining(date: DailyEntry["date"]): void;
 }
 
 function validValues(values: Array<number | undefined>) {
@@ -153,13 +153,13 @@ export function TodayScreen({
           {missingRows.map(([label, dates]) => (
             <div key={label} className={dates.length ? "missing" : "complete"}>
               <strong>{label}</strong>
-              <span>{dates.length ? dates.join(", ") : "OK"}</span>
+              <span>{dates.length ? dates.map(formatDisplayDate).join(", ") : "OK"}</span>
             </div>
           ))}
         </div>
       </section>
       <form className="panel entry-form" key={`${date}-${entry?.updatedAtMs ?? 0}`} onSubmit={save} noValidate>
-        <div className="section-title"><div><small>Záznam</small><h2>{date}</h2></div>{dayType === "training" && <button type="button" className="text-button" onClick={onTraining}>Otvoriť tréning →</button>}</div>
+        <div className="section-title"><div><small>Záznam</small><h2>{formatDisplayDate(date)}</h2></div>{dayType === "training" && <button type="button" className="text-button" onClick={() => onTraining(date)}>Otvoriť tréning →</button>}</div>
         <div className="form-grid">
           <NumberStepper label="Hmotnosť (kg)" name="weightKg" step={0.1} min={30} max={300} precision={1} suffix="kg" defaultValue={entry?.weightKg ?? ""} />
           <NumberStepper label="Pás (cm)" name="waistCm" step={0.1} min={40} max={250} precision={1} suffix="cm" defaultValue={entry?.waistCm ?? ""} />
@@ -195,7 +195,7 @@ export function TodayScreen({
         <div className="section-title"><div><small>História</small><h2>Posledných 7 dní</h2></div></div>
         <div className="history-list">{recentDates(today, 7).map((item) => {
           const row = snapshot.dailyEntries.find((candidate) => candidate.date === item);
-          return <button key={item} className={date === item ? "active" : ""} onClick={() => { setDate(item); setDayTypeOverride(null); }}><span>{format(fromLocalDate(item), "EEE d.M.", { locale: sk })}</span><span>{row?.weightKg ? `${row.weightKg} kg` : "bez záznamu"}</span></button>;
+          return <button key={item} className={date === item ? "active" : ""} onClick={() => { setDate(item); setDayTypeOverride(null); }}><span>{formatDisplayDate(item)}</span><span>{row?.weightKg ? `${row.weightKg} kg` : "bez záznamu"}</span></button>;
         })}</div>
       </section>
     </div>

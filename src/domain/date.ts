@@ -5,6 +5,10 @@ export function toLocalDate(date: Date): LocalDate {
   return format(date, "yyyy-MM-dd") as LocalDate;
 }
 
+export function formatDisplayDate(value: LocalDate): string {
+  return format(fromLocalDate(value), "dd/MM/yyyy");
+}
+
 export function isLocalDate(value: string): value is LocalDate {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) {
     return false;

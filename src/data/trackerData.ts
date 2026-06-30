@@ -121,14 +121,16 @@ function mapExercise(value: DocumentData, id: string): Exercise | null {
 }
 
 function mapDay(value: DocumentData): TrainingDayPlan | null {
+  const categoryNames = value.categoryNames;
   return Number.isInteger(value.weekday) &&
     value.weekday >= 1 &&
     value.weekday <= 7 &&
     text(value.label) &&
     typeof value.enabled === "boolean" &&
     Array.isArray(value.exerciseIds) &&
-    value.exerciseIds.every(text)
-    ? value as TrainingDayPlan
+    value.exerciseIds.every(text) &&
+    (categoryNames === undefined || (Array.isArray(categoryNames) && categoryNames.every(text)))
+    ? { ...value, categoryNames: categoryNames ?? [] } as TrainingDayPlan
     : null;
 }
 
@@ -219,7 +221,9 @@ export { signInWithGoogle, signOutCurrentUser, subscribeUser };
 export async function seedIfNeeded(uid: string) {
   const profileRef = doc(db, "users", uid, "profile", "main");
   if ((await getDoc(profileRef)).exists()) return;
-  const batch = writeBatch(db);
+  const targetHistoryRef = path(uid, "targetHistory");
+  const exercisesRef = path(uid, "exercises");
+  const trainingDaysRef = path(uid, "trainingDays");
   const target = {
     id: CALIBRATION_PROFILE.startDate,
     effectiveDate: CALIBRATION_PROFILE.startDate,
@@ -236,14 +240,27 @@ export async function seedIfNeeded(uid: string) {
     reason: "Počiatočná kalibrácia",
     createdAtMs: Date.now()
   } satisfies TargetPeriod;
+  const [targetSnap, exercisesSnap, trainingDaysSnap] = await Promise.all([
+    getDoc(doc(targetHistoryRef, target.id)),
+    getDocs(exercisesRef),
+    getDocs(trainingDaysRef)
+  ]);
+
+  const batch = writeBatch(db);
   batch.set(profileRef, firestoreData({ ...CALIBRATION_PROFILE, updatedAt: serverTimestamp() }));
-  batch.set(doc(path(uid, "targetHistory"), target.id), firestoreData({ ...target, createdAt: serverTimestamp() }));
-  DEFAULT_EXERCISES.forEach((exercise) =>
-    batch.set(doc(path(uid, "exercises"), exercise.id), firestoreData({ ...exercise, updatedAt: serverTimestamp() }))
-  );
-  DEFAULT_TRAINING_DAYS.forEach((day) =>
-    batch.set(doc(path(uid, "trainingDays"), String(day.weekday)), firestoreData({ ...day, updatedAt: serverTimestamp() }))
-  );
+  if (!targetSnap.exists()) {
+    batch.set(doc(targetHistoryRef, target.id), firestoreData({ ...target, createdAt: serverTimestamp() }));
+  }
+  if (exercisesSnap.empty) {
+    DEFAULT_EXERCISES.forEach((exercise) =>
+      batch.set(doc(exercisesRef, exercise.id), firestoreData({ ...exercise, updatedAt: serverTimestamp() }))
+    );
+  }
+  if (trainingDaysSnap.empty) {
+    DEFAULT_TRAINING_DAYS.forEach((day) =>
+      batch.set(doc(trainingDaysRef, String(day.weekday)), firestoreData({ ...day, updatedAt: serverTimestamp() }))
+    );
+  }
   await queued(batch.commit());
 }
 

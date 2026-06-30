@@ -3,6 +3,15 @@ import type { StoredRecommendation } from "./trackerData";
 
 const firestore = vi.hoisted(() => {
   let resolveCommit = () => {};
+  const refPath = (...parts: unknown[]) =>
+    parts
+      .map((part) => (typeof part === "string" ? part : ""))
+      .filter(Boolean)
+      .join("/");
+  const collection = vi.fn((...parts: unknown[]) => refPath(...parts));
+  const doc = vi.fn((...parts: unknown[]) => refPath(...parts));
+  const getDoc = vi.fn();
+  const getDocs = vi.fn();
   const setDoc = vi.fn();
   const onSnapshot = vi.fn();
   const commit = vi.fn(
@@ -17,7 +26,11 @@ const firestore = vi.hoisted(() => {
   };
   return {
     batch,
+    collection,
     commit,
+    doc,
+    getDoc,
+    getDocs,
     setDoc,
     onSnapshot,
     resolveCommit: () => resolveCommit()
@@ -25,10 +38,10 @@ const firestore = vi.hoisted(() => {
 });
 
 vi.mock("firebase/firestore", () => ({
-  collection: vi.fn(),
-  doc: vi.fn(),
-  getDoc: vi.fn(),
-  getDocs: vi.fn(),
+  collection: firestore.collection,
+  doc: firestore.doc,
+  getDoc: firestore.getDoc,
+  getDocs: firestore.getDocs,
   onSnapshot: firestore.onSnapshot,
   serverTimestamp: vi.fn(() => "timestamp"),
   setDoc: firestore.setDoc,
@@ -45,6 +58,8 @@ vi.mock("./firebaseAuth", () => ({
 import {
   decideRecommendation,
   saveDailyEntry,
+  saveTrainingDay,
+  seedIfNeeded,
   saveTopSet,
   subscribeTracker
 } from "./trackerData";
@@ -76,6 +91,35 @@ const recommendation = {
     averageTrainingQuality: 8
   }
 } satisfies StoredRecommendation;
+
+describe("cloud seeding", () => {
+  beforeEach(() => {
+    firestore.batch.set.mockClear();
+    firestore.commit.mockClear();
+    firestore.getDoc.mockReset();
+    firestore.getDocs.mockReset();
+  });
+
+  it("does not overwrite existing exercises or training days when creating a missing profile", async () => {
+    firestore.getDoc
+      .mockResolvedValueOnce({ exists: () => false })
+      .mockResolvedValueOnce({ exists: () => true });
+    firestore.getDocs.mockResolvedValue({
+      empty: false,
+      docs: [{ id: "existing", data: () => ({}) }]
+    });
+    firestore.commit.mockResolvedValueOnce(undefined);
+
+    await seedIfNeeded("user-1");
+
+    const writtenRefs = firestore.batch.set.mock.calls.map(([ref]) => String(ref));
+    expect(writtenRefs).toContain("users/user-1/profile/main");
+    expect(writtenRefs).not.toContain("users/user-1/exercises/incline-db-press");
+    expect(writtenRefs).not.toContain("users/user-1/trainingDays/1");
+    expect(firestore.getDocs).toHaveBeenCalledWith("users/user-1/exercises");
+    expect(firestore.getDocs).toHaveBeenCalledWith("users/user-1/trainingDays");
+  });
+});
 
 describe("cloud recommendation decisions", () => {
   beforeEach(() => {
@@ -166,6 +210,24 @@ describe("cloud writes", () => {
       })
     );
   });
+
+  it("writes training day category names to Firestore", async () => {
+    await saveTrainingDay("user-1", {
+      weekday: 5,
+      label: "Push",
+      enabled: true,
+      exerciseIds: ["bench"],
+      categoryNames: ["Hrudník", "Triceps"]
+    });
+
+    expect(firestore.setDoc.mock.calls[0][1]).toEqual(
+      expect.objectContaining({
+        weekday: 5,
+        exerciseIds: ["bench"],
+        categoryNames: ["Hrudník", "Triceps"]
+      })
+    );
+  });
 });
 
 describe("cloud top-set reads", () => {
@@ -199,6 +261,49 @@ describe("cloud top-set reads", () => {
 
     expect(listener).toHaveBeenLastCalledWith(
       expect.objectContaining({ topSets: [] })
+    );
+  });
+});
+
+describe("cloud training day reads", () => {
+  beforeEach(() => {
+    firestore.onSnapshot.mockClear();
+  });
+
+  it("reads category names and defaults older training days to an empty category list", () => {
+    const listener = vi.fn();
+    subscribeTracker("user-1", listener);
+    const trainingDaysCallback = firestore.onSnapshot.mock.calls[3][1];
+
+    trainingDaysCallback({
+      docs: [
+        {
+          data: () => ({
+            weekday: 5,
+            label: "Push",
+            enabled: true,
+            exerciseIds: ["bench"],
+            categoryNames: ["Hrudník"]
+          })
+        },
+        {
+          data: () => ({
+            weekday: 6,
+            label: "Pull",
+            enabled: true,
+            exerciseIds: ["row"]
+          })
+        }
+      ]
+    });
+
+    expect(listener).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        trainingDays: [
+          expect.objectContaining({ weekday: 5, categoryNames: ["Hrudník"] }),
+          expect.objectContaining({ weekday: 6, categoryNames: [] })
+        ]
+      })
     );
   });
 });

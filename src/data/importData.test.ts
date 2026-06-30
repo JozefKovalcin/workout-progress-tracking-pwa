@@ -39,6 +39,21 @@ describe("import data validation", () => {
     expect(result.profile?.evaluationDays).toBe(14);
   });
 
+  it("normalizes category assignments on training days", () => {
+    const result = normalizeImportedSnapshot({
+      ...validExport,
+      trainingDays: [{
+        ...DEFAULT_TRAINING_DAYS[0],
+        categoryNames: ["Hrudník", "Triceps"]
+      }]
+    });
+
+    expect(result.trainingDays[0]).toMatchObject({
+      exerciseIds: DEFAULT_TRAINING_DAYS[0].exerciseIds,
+      categoryNames: ["Hrudník", "Triceps"]
+    });
+  });
+
   it("rejects malformed daily values instead of importing unsafe data", () => {
     expect(() => normalizeImportedSnapshot({
       ...validExport,
